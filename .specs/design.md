@@ -225,6 +225,31 @@ agent_decisions ──< (entity_id polimórfico)                                
 
 ---
 
+## 1.x Enum Types
+
+Campos com conjunto fixo de valores válidos usam classes `enum.Enum` do Python definidas no package `backend/src/enums/` (organizado por domínio). O `__init__.py` re-exporta tudo — imports sempre via `from src.enums import <Class>`. A coluna no banco permanece `VARCHAR` — sem PostgreSQL native ENUM. A restrição de valores é responsabilidade da camada de aplicação (guardrails Pydantic).
+
+> `event_type` e `action` (AgentDecision) e `event_type` (ChaosEvent) são strings livres — não usam enum porque o conjunto de valores é extensível.
+
+| Enum Class              | Campo(s) de uso                                              | Valores válidos                                                    |
+| ----------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `AgentType`             | `agent_decisions.agent_type`                                 | `factory`, `warehouse`, `store`, `truck`, `master`                 |
+| `TruckType`             | `trucks.truck_type`                                          | `proprietario`, `terceiro`                                         |
+| `TruckStatus`           | `trucks.status`                                              | `idle`, `evaluating`, `in_transit`, `broken`, `maintenance`        |
+| `FactoryStatus`         | `factories.status`                                           | `operating`, `stopped`, `reduced_capacity`                         |
+| `WarehouseStatus`       | `warehouses.status`                                          | `operating`, `rationing`, `offline`                                |
+| `StoreStatus`           | `stores.status`                                              | `open`, `demand_paused`, `offline`                                 |
+| `RouteNodeType`         | `routes.origin_type`, `routes.dest_type`                     | `factory`, `warehouse`, `store`                                    |
+| `RouteStatus`           | `routes.status`                                              | `active`, `completed`, `interrupted`                               |
+| `ChaosEventSource`      | `events.source`                                              | `user`, `master_agent`, `engine`                                   |
+| `ChaosEventEntityType`  | `events.entity_type`                                         | `factory`, `warehouse`, `store`, `truck`                           |
+| `ChaosEventStatus`      | `events.status`                                              | `active`, `resolved`                                               |
+| `OrderStatus`           | `pending_orders.status`                                      | `pending`, `confirmed`, `rejected`, `delivered`, `cancelled`       |
+| `OrderRequesterType`    | `pending_orders.requester_type`                              | `store`, `warehouse`                                               |
+| `OrderTargetType`       | `pending_orders.target_type`                                 | `warehouse`, `factory`                                             |
+
+---
+
 ## 2. Endpoints HTTP
 
 Base URL: `/api/v1`

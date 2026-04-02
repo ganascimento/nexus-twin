@@ -11,7 +11,7 @@
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
 | 01 | project_setup | done | |
-| 02 | db_models | pending | |
+| 02 | db_models | done | enums.py adicionado retroativamente — Python Enum + String column |
 | 03 | db_migrations_seed | pending | |
 | 04 | repositories | pending | |
 | 05 | world_state | pending | |
@@ -34,9 +34,11 @@
 ## Status Legend
 
 - `pending` — not started
-- `in_progress` — currently being implemented
-- `done` — implemented and tests passing
-- `blocked` — blocked by a dependency or decision
+- `tdd_phase1` — tests written, waiting for user approval before implementation
+- `tdd_rejected` — user rejected the tests; Notes column describes what to revise
+- `in_progress` — tests approved, implementation underway
+- `done` — implemented and all tests passing
+- `blocked` — blocked by a dependency or external decision
 
 ---
 
@@ -44,4 +46,6 @@
 
 > Record decisions made during development that are not obvious from the code or specs.
 > Format: `[feature] decision made — reason`
+
+- [02_db_models] Python `enum.Enum` + `String` column para campos tipados (`status`, `truck_type`, `agent_type`, etc.) — PostgreSQL native ENUM descartado por custo alto de migration em fase de evolução rápida do schema. Enums centralizados em `backend/src/enums.py`, importados por models, guardrails e agents. Guardrails Pydantic enforçam os valores na camada de aplicação. Campos extensíveis (`event_type`, `action`) permanecem string livre.
 

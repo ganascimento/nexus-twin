@@ -27,24 +27,31 @@ O Grupo 3 é sequencial — roda somente após o usuário aprovar os testes do G
 
 **Tarefa:** Escrever todos os testes de integração para migrations e seed. Não implementar produção.
 
-1. Criar `backend/tests/integration/__init__.py` (vazio)
+1. Adicionar dependências de teste em `backend/pyproject.toml`:
+   - Garantir que `[project.optional-dependencies]` tem o grupo `test` com:
+     - `pytest>=8.0`
+     - `pytest-asyncio>=0.23`
+     - `testcontainers[postgres]>=4.0`
 
-2. Criar `backend/tests/integration/database/__init__.py` (vazio)
+2. Criar `backend/tests/integration/__init__.py` (vazio)
 
-3. Criar `backend/tests/conftest.py` (se não existir) com fixture `async_engine` que:
-   - Cria um engine PostgreSQL async via `create_async_engine(TEST_DATABASE_URL)` lendo `TEST_DATABASE_URL` do ambiente
-   - Ao iniciar: roda `alembic upgrade head` programaticamente via `alembic.config.Config` + `command.upgrade`
-   - Ao encerrar: roda `alembic downgrade base` para limpar o banco de teste
-   - Expõe também uma fixture `async_session` que retorna `AsyncSession` conectado a este engine
+3. Criar `backend/tests/integration/database/__init__.py` (vazio)
 
-4. Criar `backend/tests/integration/database/test_migrations.py`:
+4. Criar `backend/tests/conftest.py` (se não existir) com fixtures para testes de integração:
+   - Fixture `postgres_container` (scope `session`): instancia `PostgresContainer("postgres:15")` do `testcontainers.postgres`, faz `start()`, e ao final do yield faz `stop()` — sem depender de variável de ambiente
+   - Fixture `async_engine` (scope `session`, depende de `postgres_container`): obtém a URL de conexão via `postgres_container.get_connection_url()`, adapta o scheme para `postgresql+asyncpg://`, cria engine com `create_async_engine`
+   - Ao iniciar: roda `alembic upgrade head` programaticamente via `alembic.config.Config` + `command.upgrade` apontando para o container
+   - Ao encerrar: roda `alembic downgrade base`
+   - Fixture `async_session` (scope `function`, depende de `async_engine`): retorna `AsyncSession` conectado a este engine; faz rollback ao encerrar para isolar cada teste
+
+5. Criar `backend/tests/integration/database/test_migrations.py`:
    - `test_all_tables_created`: após `alembic upgrade head`, consulta `information_schema.tables` e verifica que as 13 tabelas existem: `materials`, `factories`, `factory_products`, `factory_partner_warehouses`, `warehouses`, `warehouse_stocks`, `stores`, `store_stocks`, `trucks`, `routes`, `pending_orders`, `events`, `agent_decisions`
    - `test_downgrade_removes_all_tables`: após `alembic downgrade base`, nenhuma das 13 tabelas existe
    - `test_factory_products_composite_pk`: verifica que a tabela `factory_products` tem PK composta sobre (`factory_id`, `material_id`) consultando `information_schema.table_constraints`
    - `test_warehouse_stocks_composite_pk`: análogo para `warehouse_stocks`
    - `test_store_stocks_composite_pk`: análogo para `store_stocks`
 
-5. Criar `backend/tests/integration/database/test_seed.py`:
+6. Criar `backend/tests/integration/database/test_seed.py`:
    - Importa `seed_default_world` de `src.database.seed`
    - `test_materials_count`: após seed, `SELECT COUNT(*) FROM materials` retorna 3
    - `test_materials_ids`: os 3 IDs são exatamente `tijolos`, `vergalhao`, `cimento` — todos `is_active=True`

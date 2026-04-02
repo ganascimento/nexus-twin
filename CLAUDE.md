@@ -176,6 +176,15 @@ nexus-twin/
 │   │   │   │   └── chaos.py            # Injeção manual de eventos disruptivos
 │   │   │   └── websocket.py            # Streaming de eventos para o dashboard
 │   │   │
+│   │   ├── enums/                      # Enums compartilhados entre todas as camadas
+│   │   │   ├── __init__.py             # Re-exporta todas as classes
+│   │   │   ├── agents.py               # AgentType
+│   │   │   ├── trucks.py               # TruckType, TruckStatus
+│   │   │   ├── facilities.py           # FactoryStatus, WarehouseStatus, StoreStatus
+│   │   │   ├── routes.py               # RouteNodeType, RouteStatus
+│   │   │   ├── events.py               # ChaosEventSource, ChaosEventEntityType, ChaosEventStatus
+│   │   │   └── orders.py               # OrderStatus, OrderRequesterType, OrderTargetType
+│   │   │
 │   │   └── main.py                     # Entry point FastAPI
 │   │
 │   ├── tests/
@@ -395,6 +404,13 @@ celery = { extras = ["redis"] }  # Jobs background (não-LLM)
 redis = ">=5.0"
 loguru = ">=0.7"
 httpx = ">=0.27"              # HTTP client para ferramentas externas
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "testcontainers[postgres]>=4.0",  # Banco PostgreSQL efêmero para testes de integração
+]
 ```
 
 ### Dependências Frontend (package.json)
@@ -504,6 +520,7 @@ Tick N  (10s real = 1h simulada)
 - **Nomenclatura expressiva:** Nomes de métodos e variáveis devem ser autoexplicativos, eliminando a necessidade de comentários. Prefira `calculate_replenishment_ticks()` a `calc()` com um comentário explicando o que faz.
 - **Sem docstrings:** Não adicionar docstrings nos métodos (blocos de descrição de parâmetros, retorno, exemplos). O código deve se explicar pelos nomes e pela estrutura.
 - **Sem comentários redundantes:** Comentários só são aceitáveis para lógica genuinamente não óbvia (ex: fórmulas físicas com contexto de negócio). Nunca use comentários para descrever o que o código faz — renomeie o código.
+- **Campos tipados — Python Enum:** Colunas com conjunto fixo de valores válidos usam classes `enum.Enum` definidas em `backend/src/enums/` (package, organizado por domínio: `agents.py`, `trucks.py`, `facilities.py`, `routes.py`, `events.py`, `orders.py`). O `__init__.py` re-exporta tudo — imports sempre via `from src.enums import <Class>`. O tipo da coluna no banco permanece `String` — sem PostgreSQL native ENUM (custo de migration alto em fase de evolução rápida). Guardrails Pydantic enforçam os valores na camada de aplicação. Campos livres/extensíveis (ex: `event_type`, `action`) não usam enum.
 
 ---
 
@@ -513,11 +530,12 @@ Tick N  (10s real = 1h simulada)
 - **Determinismo:** Física nunca usa IA — garante reprodutibilidade e facilita testes.
 - **Guardrails first:** Nenhuma decisão de agente afeta o banco sem passar pelo schema Pydantic.
 - **TDD obrigatório — fluxo em duas fases:**
-  1. **Fase 1 — Testes:** Escreva todos os testes unitários da feature. Pare e aguarde aprovação do usuário.
+  1. **Fase 1 — Testes:** Escreva todos os testes da feature (unitários ou de integração, conforme a natureza da feature). Pare e aguarde aprovação do usuário.
   2. **Fase 2 — Implementação:** Somente após o usuário aprovar os testes, implemente o código da feature.
   - Nunca escreva código de implementação junto com os testes — as fases são separadas e sequenciais.
   - Nunca avance para a próxima feature sem o usuário validar os testes da atual.
-- **Testes:** Agentes testáveis com `WorldState` mockado e `ChatOpenAI` substituído por `FakeListChatModel` do LangChain.
+- **Testes unitários:** agentes testáveis com `WorldState` mockado e `ChatOpenAI` substituído por `FakeListChatModel` do LangChain; repositories testados com `AsyncSession` mockada.
+- **Testes de integração:** features que tocam banco de dados (migrations, seed, repositories em cenários end-to-end) usam banco PostgreSQL efêmero via `testcontainers-python` (`PostgresContainer`) — sem variável de ambiente, sem banco preexistente. Instalar com `pip install -e ".[test]"`.
 - **Performance:** Evitar N+1 queries — `WorldState` é carregado em uma query com joins.
 
 ---
@@ -536,7 +554,26 @@ Tick N  (10s real = 1h simulada)
 `.specs/state.md` é o arquivo de controle de progresso do desenvolvimento. O agente deve:
 
 - **Ler `state.md` no início de cada sessão de desenvolvimento** para saber onde parou e o que vem a seguir.
-- **Atualizar `state.md` após concluir cada feature** — marcar como `done` na tabela de progresso.
+- **Atualizar `state.md` após cada transição de fase** — não apenas ao concluir a feature.
 - **Registrar decisões de implementação** na seção "Implementation Decisions" quando algo relevante for decidido durante o desenvolvimento (ex: escolha de biblioteca, trade-off de design não óbvio, desvio do spec).
 - **Não usar `state.md` para registrar definições do projeto** — essas vivem em `design.md`, `prd.md` e `CLAUDE.md`.
 - O arquivo rastreia exclusivamente o estado de progresso das 18 features em `.specs/features/` — nada mais.
+
+### Ciclo de status por feature
+
+```
+pending → tdd_phase1 → in_progress → done
+                ↓            ↑
+          tdd_rejected ──────┘  (após revisão dos testes)
+```
+
+| Transição | Quando ocorre |
+|---|---|
+| `pending` → `tdd_phase1` | Testes escritos, aguardando aprovação do usuário |
+| `tdd_phase1` → `tdd_rejected` | Usuário rejeitou os testes (`revise ...`) — Notes registra o que revisar |
+| `tdd_rejected` → `tdd_phase1` | Testes revisados, aguardando aprovação novamente |
+| `tdd_phase1` → `in_progress` | Usuário aprovou os testes (`approved`) |
+| `pending` → `in_progress` | Feature sem TDD — implementação direta |
+| `in_progress` → `done` | Todos os critérios satisfeitos e testes passando |
+
+**Ao retomar uma sessão:** se o status for `tdd_phase1`, re-exibir o resumo dos testes escritos e aguardar aprovação. Se for `tdd_rejected`, re-exibir o que precisa revisar (Notes) e corrigir os testes antes de prosseguir.

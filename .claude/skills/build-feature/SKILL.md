@@ -27,6 +27,13 @@ Proceed with this feature? (y/n) — or provide a different number.
 
 Wait for confirmation before continuing.
 
+**Resume logic — check the feature's current status before proceeding:**
+
+- `tdd_phase1` → the tests were already written in a previous session. Re-list the test files and their test names (read the files), then present the Phase 1 summary again and wait for `approved` / `revise [what to change]`. Do NOT rewrite the tests.
+- `tdd_rejected` → the tests were rejected. Read the Notes column for what to revise. Apply the revisions, then set status back to `tdd_phase1` and present the updated Phase 1 summary.
+- `in_progress` → tests were already approved. Skip Phase 1 entirely and resume implementation from where it left off (check which files exist vs. what tasks.md expects).
+- `pending` or no status → start fresh from Step 3.
+
 ## Step 3 — Read the feature files
 
 Read both files for the confirmed feature:
@@ -38,7 +45,7 @@ If either file is empty or missing, stop and inform the user:
 ⚠ specs.md or tasks.md for feature XX is empty. Fill them in before executing.
 ```
 
-Also update `state.md` now: set the feature status to `in_progress`.
+Do not update `state.md` yet — the status will be set at the correct transition points below.
 
 ## Step 4 — Check if TDD applies
 
@@ -71,7 +78,10 @@ Execute the feature's test plan:
 5. Use a mocked `WorldState` for tests that depend on world state
 6. **Do not implement any production logic in this phase** — stubs and `NotImplementedError` are acceptable in production files so the tests can exist
 
-When Phase 1 is complete, present to the user:
+When Phase 1 is complete:
+
+1. Update `state.md`: set feature status to `tdd_phase1`
+2. Present to the user:
 
 ```
 ✓ Phase 1 complete — X test files created
@@ -88,7 +98,10 @@ Criteria covered:
 Review the tests and reply: approved / revise [what to change]
 ```
 
-**Stop and wait.** Do not continue until the user replies with "approved" or equivalent.
+**Stop and wait.** Do not continue until the user replies.
+
+- If the user replies `approved` (or equivalent): update `state.md` status to `in_progress` and proceed to Step 6.
+- If the user replies `revise [what to change]`: update `state.md` status to `tdd_rejected` and Notes to the revision instruction. Apply the revisions, set status back to `tdd_phase1`, and re-present the Phase 1 summary.
 
 ## Step 6 — Phase 2: Implementation
 
@@ -118,7 +131,7 @@ After all groups complete:
 
 Once all acceptance criteria are confirmed satisfied:
 
-1. Update `.specs/state.md`: change the feature status from `in_progress` to `done`
+1. Update `.specs/state.md`: change the feature status to `done` (clearing Notes if any)
 2. If any relevant implementation decision was made (library choice, non-obvious trade-off, deviation from spec), record it in the "Implementation Decisions" section with the format: `[feature_XX] decision — reason`
 
 ## Step 9 — Final report

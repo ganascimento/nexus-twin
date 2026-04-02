@@ -96,15 +96,36 @@ Não leia specs de outras features. Esta feature não depende de nenhuma lógica
     - `test_reasoning_is_nullable`
     - `test_required_columns_exist` — verifica `agent_type`, `entity_id`, `tick`, `event_type`, `action`, `payload`
 
+11. Criar `backend/tests/unit/enums/test_enums.py`:
+    - Importa todas as classes enum de `src.enums`
+    - Para cada classe, dois testes:
+      - `test_<enum_name>_values` — verifica o valor `.value` de cada membro (garante que a string bate com o que está no `design.md §1.x`)
+      - `test_<enum_name>_member_count` — verifica `len(<EnumClass>) == N` esperado (evita membros esquecidos ou extras)
+    - Classes e contagens esperadas:
+      - `AgentType` (5), `TruckType` (2), `TruckStatus` (5), `FactoryStatus` (3)
+      - `WarehouseStatus` (3), `StoreStatus` (3), `RouteNodeType` (3), `RouteStatus` (3)
+      - `ChaosEventSource` (3), `ChaosEventEntityType` (4), `ChaosEventStatus` (2)
+      - `OrderStatus` (5), `OrderRequesterType` (2), `OrderTargetType` (2)
+
 > ⛔ **Pare aqui. Não implemente nenhum modelo de produção. Aguarde aprovação do usuário antes de continuar para os Grupos 2A–2D.**
 
 ---
 
-### Grupo 2A — Modelos: Material e Factory (um agente)
+### Grupo 2A — Enums + Modelos: Material e Factory (um agente)
 
-**Tarefa:** Implementar os modelos `Material`, `Factory`, `FactoryProduct` e `FactoryPartnerWarehouse`.
+**Tarefa:** Criar `backend/src/enums.py` e implementar os modelos `Material`, `Factory`, `FactoryProduct` e `FactoryPartnerWarehouse`.
 
-1. Em `backend/src/database/models/__init__.py`:
+1. Criar o package `backend/src/enums/` com os arquivos de domínio:
+   - `agents.py` — `AgentType`
+   - `trucks.py` — `TruckType`, `TruckStatus`
+   - `facilities.py` — `FactoryStatus`, `WarehouseStatus`, `StoreStatus`
+   - `routes.py` — `RouteNodeType`, `RouteStatus`
+   - `events.py` — `ChaosEventSource`, `ChaosEventEntityType`, `ChaosEventStatus`
+   - `orders.py` — `OrderStatus`, `OrderRequesterType`, `OrderTargetType`
+   - `__init__.py` — re-exporta todas as classes acima via `from .<module> import ...`
+   - Usar `str, enum.Enum` como base para que `.value` seja string diretamente usável no banco
+
+2. Em `backend/src/database/models/__init__.py`:
    - Definir `Base = declarative_base()`
    - Exportar `Base` — os outros grupos importarão daqui
 
@@ -252,7 +273,7 @@ Não leia specs de outras features. Esta feature não depende de nenhuma lógica
    - Adicionar `from src.database.models import Base`
    - Substituir `target_metadata = None` por `target_metadata = Base.metadata`
 
-3. Rodar `pytest backend/tests/unit/database/models/ -v` e confirmar que todos os testes passam sem banco de dados real
+3. Rodar `pytest backend/tests/unit/ -v` e confirmar que todos os testes passam sem banco de dados real
 
 4. Se algum teste falhar, corrigir o modelo correspondente e rodar novamente antes de marcar como concluído
 
@@ -260,5 +281,5 @@ Não leia specs de outras features. Esta feature não depende de nenhuma lógica
 
 ## Condição de Conclusão
 
-Todos os critérios de aceitação em `specs.md` estão satisfeitos e `pytest backend/tests/unit/database/models/` passa com zero falhas.
+Todos os critérios de aceitação em `specs.md` estão satisfeitos e `pytest backend/tests/unit/` passa com zero falhas.
 Atualizar `state.md`: setar o status da feature `02` para `done`.

@@ -46,7 +46,7 @@ Criar as migrations Alembic que geram todas as tabelas do PostgreSQL definidas e
   - Os valores numéricos críticos estão corretos (ex: `factory-001` tijolos `stock=12`, `stock_max=30`, `production_rate_max=2`)
   - Chamar `seed_default_world` duas vezes não duplica registros
   - Os 6 vínculos `factory_partner_warehouses` existem com as prioridades corretas
-- [ ] Testes de integração passam com `pytest backend/tests/integration/database/` usando banco PostgreSQL real (não mock)
+- [ ] Testes de integração passam com `pytest backend/tests/integration/database/` usando banco PostgreSQL efêmero provisionado pelo `testcontainers-python` — sem dependência de variável de ambiente ou banco preexistente
 
 ---
 

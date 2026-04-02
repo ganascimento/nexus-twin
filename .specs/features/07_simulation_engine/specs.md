@@ -30,7 +30,7 @@ Sem esta feature, nada se move — ela é o coração do mundo simulado. Feature
 ### Eventos — `simulation/events.py`
 
 - [ ] Todos os tipos de evento do sistema estão definidos como constantes ou enum: `route_blocked`, `truck_arrived`, `truck_breakdown`, `new_order`, `contract_proposal`, `machine_breakdown`, `demand_spike`, `strike`, `storm`, `sudden_demand_zero`, `engine_blocked_degraded_truck`, `low_stock_trigger`, `stock_trigger_warehouse`, `stock_trigger_factory`
-- [ ] O módulo define `SimulationEvent` — dataclass com campos: `event_type: str`, `source: str` (`user` / `master_agent` / `engine`), `entity_type: str | None`, `entity_id: str | None`, `payload: dict`, `tick: int`
+- [ ] O módulo define `SimulationEvent` — dataclass com campos: `event_type: str`, `source: ChaosEventSource`, `entity_type: ChaosEventEntityType | None`, `entity_id: str | None`, `payload: dict`, `tick: int`
 - [ ] O módulo define `route_event()`, `trigger_event()` e `chaos_event()` como funções de fábrica que constroem `SimulationEvent` com os campos corretos — sem lógica de negócio
 
 ### Publisher — `simulation/publisher.py`

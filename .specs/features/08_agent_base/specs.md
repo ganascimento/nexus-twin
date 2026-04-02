@@ -14,7 +14,7 @@ Esta feature é o alicerce sobre o qual todos os agentes concretos (feature 09) 
 
 - [ ] `backend/src/agents/base.py` exporta `AgentState` como `TypedDict` com os campos exatos de `design.md §7.1`: `world_state`, `entity_id`, `entity_type`, `trigger_event`, `current_tick`, `messages`, `decision_history`, `decision`, `fast_path_taken`, `error`
 - [ ] `AgentState.messages` usa `Annotated[list, add_messages]` do `langgraph.graph.message` para acumulação por append
-- [ ] `AgentState.entity_type` é `Literal["factory", "warehouse", "store", "truck"]`
+- [ ] `AgentState.entity_type` é `ChaosEventEntityType` (importado de `src.enums`)
 - [ ] `WorldStateSlice` exportado por `base.py` contém exatamente: `entity: dict`, `related_entities: list[dict]`, `active_events: list[dict]`, `pending_orders: list[dict]`
 - [ ] `DecisionMemory` exportado por `base.py` contém: `tick: int`, `event_type: str`, `action: str`, `summary: str`
 - [ ] `AgentDecision` exportado por `base.py` contém: `action: str`, `payload: dict`

@@ -27,6 +27,25 @@ Implementar todos os modelos SQLAlchemy ORM que mapeiam as tabelas do PostgreSQL
 - [ ] `backend/src/database/models/event.py` define `ChaosEvent` com: `id` (UUID, PK), `event_type` (VARCHAR(50), NOT NULL), `source` (VARCHAR(20), NOT NULL — `user`/`master_agent`/`engine`), `entity_type` (VARCHAR(20), nullable), `entity_id` (VARCHAR(50), nullable), `payload` (JSONB, NOT NULL), `status` (VARCHAR(20), NOT NULL — `active`/`resolved`), `tick_start` (INTEGER, NOT NULL), `tick_end` (INTEGER, nullable), `created_at` (TIMESTAMPTZ, NOT NULL)
 - [ ] `backend/src/database/models/agent_decision.py` define `AgentDecision` com: `id` (UUID, PK), `agent_type` (VARCHAR(20), NOT NULL — `factory`/`warehouse`/`store`/`truck`/`master`), `entity_id` (VARCHAR(50), NOT NULL), `tick` (INTEGER, NOT NULL), `event_type` (VARCHAR(50), NOT NULL), `action` (VARCHAR(50), NOT NULL), `payload` (JSONB, NOT NULL), `reasoning` (TEXT, nullable), `created_at` (TIMESTAMPTZ, NOT NULL)
 
+### Backend — Enums
+
+- [ ] `backend/src/enums/` é um package com arquivos por domínio: `agents.py`, `trucks.py`, `facilities.py`, `routes.py`, `events.py`, `orders.py`. O `__init__.py` re-exporta todas as classes — imports sempre via `from src.enums import <Class>`. Define as seguintes classes `enum.Enum` (valores em snake_case como strings):
+  - `AgentType`: `FACTORY="factory"`, `WAREHOUSE="warehouse"`, `STORE="store"`, `TRUCK="truck"`, `MASTER="master"`
+  - `TruckType`: `PROPRIETARIO="proprietario"`, `TERCEIRO="terceiro"`
+  - `TruckStatus`: `IDLE="idle"`, `EVALUATING="evaluating"`, `IN_TRANSIT="in_transit"`, `BROKEN="broken"`, `MAINTENANCE="maintenance"`
+  - `FactoryStatus`: `OPERATING="operating"`, `STOPPED="stopped"`, `REDUCED_CAPACITY="reduced_capacity"`
+  - `WarehouseStatus`: `OPERATING="operating"`, `RATIONING="rationing"`, `OFFLINE="offline"`
+  - `StoreStatus`: `OPEN="open"`, `DEMAND_PAUSED="demand_paused"`, `OFFLINE="offline"`
+  - `RouteNodeType`: `FACTORY="factory"`, `WAREHOUSE="warehouse"`, `STORE="store"`
+  - `RouteStatus`: `ACTIVE="active"`, `COMPLETED="completed"`, `INTERRUPTED="interrupted"`
+  - `ChaosEventSource`: `USER="user"`, `MASTER_AGENT="master_agent"`, `ENGINE="engine"`
+  - `ChaosEventEntityType`: `FACTORY="factory"`, `WAREHOUSE="warehouse"`, `STORE="store"`, `TRUCK="truck"`
+  - `ChaosEventStatus`: `ACTIVE="active"`, `RESOLVED="resolved"`
+  - `OrderStatus`: `PENDING="pending"`, `CONFIRMED="confirmed"`, `REJECTED="rejected"`, `DELIVERED="delivered"`, `CANCELLED="cancelled"`
+  - `OrderRequesterType`: `STORE="store"`, `WAREHOUSE="warehouse"`
+  - `OrderTargetType`: `WAREHOUSE="warehouse"`, `FACTORY="factory"`
+- [ ] Colunas dos modelos permanecem `String` — sem PostgreSQL native ENUM. Os enums são usados no código Python; o banco aceita qualquer string.
+
 ### Backend — Base e Integração
 
 - [ ] Todos os modelos herdam de uma única `Base = declarative_base()` definida em `backend/src/database/models/__init__.py`
@@ -45,6 +64,7 @@ Implementar todos os modelos SQLAlchemy ORM que mapeiam as tabelas do PostgreSQL
 - [ ] `backend/tests/unit/database/models/test_order.py` verifica: `id` é UUID; `status` valores válidos; `age_ticks` default=0; campos nullable corretamente
 - [ ] `backend/tests/unit/database/models/test_event.py` verifica: `id` é UUID; `entity_type` e `entity_id` nullable; `tick_end` nullable
 - [ ] `backend/tests/unit/database/models/test_agent_decision.py` verifica: `id` é UUID; `reasoning` nullable; todos os campos obrigatórios presentes
+- [ ] `backend/tests/unit/database/models/test_enums.py` verifica: existência de cada classe enum; valores string corretos para cada membro; contagem de membros por classe (garante que nenhum valor foi omitido ou adicionado acidentalmente)
 - [ ] Todos os testes passam com `pytest backend/tests/unit/database/models/` sem precisar de banco de dados real
 
 ---
