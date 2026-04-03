@@ -55,7 +55,7 @@ Implementar a camada de acesso ao banco de dados para todas as entidades do sist
 - [ ] `create(data: dict) → Truck` insere caminhão
 - [ ] `delete(id: str) → None` remove caminhão
 - [ ] `update_status(id: str, status: str) → None` atualiza coluna `status`
-- [ ] `try_lock_for_evaluation(truck_id: str) → bool` executa `UPDATE trucks SET status = 'evaluating' WHERE id = ? AND status = 'idle'`; retorna `True` se exatamente 1 linha foi afetada, `False` se 0
+- [ ] `try_lock_for_evaluation(truck_id: str) → bool` executa `SELECT ... FOR UPDATE SKIP LOCKED` filtrando por `id = ?` e `status = 'idle'`; se encontrar a linha, atualiza `status → 'evaluating'` via ORM e chama `flush()`; retorna `True` se bem-sucedido, `False` se a linha não existe, não era `idle` ou já estava bloqueada por outra transação
 - [ ] `update_position(id: str, lat: float, lng: float) → None` atualiza `current_lat` e `current_lng`
 - [ ] `update_degradation(id: str, degradation: float, breakdown_risk: float) → None` atualiza `degradation` e `breakdown_risk`
 - [ ] `set_cargo(id: str, cargo: dict | None) → None` atualiza coluna `cargo` (aceita `None` para limpar)

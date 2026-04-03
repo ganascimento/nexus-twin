@@ -744,7 +744,7 @@ Cada repository vive em `backend/src/repositories/<entidade>.py`.
 | `create(data: dict) → Truck`                                                   | Insere caminhão                                        |
 | `delete(id: str) → None`                                                       | Remove caminhão                                        |
 | `update_status(id: str, status: str) → None`                                   | Atualiza `status`                                                   |
-| `try_lock_for_evaluation(truck_id: str) → bool`                                | `UPDATE trucks SET status = 'evaluating' WHERE id = ? AND status = 'idle'` — retorna `True` se bem-sucedido (caminhão era `idle`), `False` se já estava em outro estado; garante que só uma task concurrent avalie o caminhão |
+| `try_lock_for_evaluation(truck_id: str) → bool`                                | `SELECT ... WHERE id = ? AND status = 'idle' FOR UPDATE SKIP LOCKED` — se encontrar a linha, muda `status → 'evaluating'` e flush; retorna `True` se bem-sucedido, `False` se o caminhão não era `idle` ou a linha já estava bloqueada por outra transação |
 | `update_position(id: str, lat: float, lng: float) → None`                      | Atualiza `current_lat/lng`                             |
 | `update_degradation(id: str, degradation: float, breakdown_risk: float) → None`| Atualiza desgaste e risco                              |
 | `set_cargo(id: str, cargo: dict \| None) → None`                               | Define ou limpa a carga atual                          |
@@ -1282,14 +1282,20 @@ await asyncio.create_task(truck_agent.run_cycle(trigger))
 
 ```python
 async def try_lock_for_evaluation(self, truck_id: str) -> bool:
-    result = await self.session.execute(
-        update(TruckModel)
-        .where(TruckModel.id == truck_id, TruckModel.status == "idle")
-        .values(status="evaluating")
-        .returning(TruckModel.id)
+    result = await self._session.execute(
+        select(Truck)
+        .where(Truck.id == truck_id, Truck.status == "idle")
+        .with_for_update(skip_locked=True)
     )
-    return result.rowcount > 0
+    truck = result.scalar_one_or_none()
+    if truck is None:
+        return False
+    truck.status = "evaluating"
+    await self._session.flush()
+    return True
 ```
+
+**Por que `SELECT FOR UPDATE SKIP LOCKED` e não `UPDATE ... WHERE`:** o `UPDATE` condicional é atômico no PostgreSQL, mas a mudança só fica visível para outras sessões após o commit — se duas tasks entrarem antes de qualquer commit, ambas leem `idle` e ambas retornam `rowcount=1`. Com `SKIP LOCKED`, a segunda transação pula a linha já bloqueada e retorna `None` imediatamente, sem esperar nem sem ver o estado desatualizado.
 
 **Fluxo no agente:**
 - Se o agente aceita: `status → in_transit`

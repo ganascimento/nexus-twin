@@ -1,1 +1,75 @@
-# stub
+from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.database.models import Truck
+
+
+class TruckRepository:
+    def __init__(self, session: AsyncSession):
+        self._session = session
+
+    async def get_all(self) -> list[Truck]:
+        result = await self._session.execute(select(Truck))
+        return result.scalars().all()
+
+    async def get_by_id(self, id: str) -> Truck | None:
+        result = await self._session.execute(select(Truck).where(Truck.id == id))
+        return result.scalar_one_or_none()
+
+    async def get_by_factory(self, factory_id: str) -> list[Truck]:
+        result = await self._session.execute(
+            select(Truck).where(Truck.factory_id == factory_id)
+        )
+        return result.scalars().all()
+
+    async def create(self, data: dict) -> Truck:
+        truck = Truck(**data)
+        self._session.add(truck)
+        await self._session.flush()
+        await self._session.refresh(truck)
+        return truck
+
+    async def delete(self, id: str) -> None:
+        await self._session.execute(delete(Truck).where(Truck.id == id))
+
+    async def update_status(self, id: str, status: str) -> None:
+        await self._session.execute(
+            update(Truck).where(Truck.id == id).values(status=status)
+        )
+
+    async def try_lock_for_evaluation(self, truck_id: str) -> bool:
+        result = await self._session.execute(
+            select(Truck)
+            .where(Truck.id == truck_id, Truck.status == "idle")
+            .with_for_update(skip_locked=True)
+        )
+        truck = result.scalar_one_or_none()
+        if truck is None:
+            return False
+        truck.status = "evaluating"
+        await self._session.flush()
+        return True
+
+    async def update_position(self, id: str, lat: float, lng: float) -> None:
+        await self._session.execute(
+            update(Truck).where(Truck.id == id).values(current_lat=lat, current_lng=lng)
+        )
+
+    async def update_degradation(
+        self, id: str, degradation: float, breakdown_risk: float
+    ) -> None:
+        await self._session.execute(
+            update(Truck)
+            .where(Truck.id == id)
+            .values(degradation=degradation, breakdown_risk=breakdown_risk)
+        )
+
+    async def set_cargo(self, id: str, cargo: dict | None) -> None:
+        await self._session.execute(
+            update(Truck).where(Truck.id == id).values(cargo=cargo)
+        )
+
+    async def set_active_route(self, id: str, route_id) -> None:
+        await self._session.execute(
+            update(Truck).where(Truck.id == id).values(active_route_id=route_id)
+        )

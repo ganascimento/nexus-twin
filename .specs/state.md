@@ -13,7 +13,7 @@
 | 01 | project_setup | done | |
 | 02 | db_models | done | enums.py adicionado retroativamente — Python Enum + String column |
 | 03 | db_migrations_seed | done | |
-| 04 | repositories | pending | |
+| 04 | repositories | done | |
 | 05 | world_state | pending | |
 | 06 | services_entities | pending | |
 | 07 | simulation_engine | pending | |
