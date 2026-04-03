@@ -129,6 +129,47 @@ pip install -e ".[dev]"
 python -m uvicorn src.main:app --reload --port 8000
 ```
 
+**Database**
+
+```bash
+cd backend
+
+# Apply all migrations (create tables)
+alembic upgrade head
+
+# Seed the world with default data (3 factories, 3 warehouses, 5 stores, 6 trucks)
+python -c "
+import asyncio
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from src.database.seed import seed_default_world
+import os
+
+async def run():
+    engine = create_async_engine(os.environ['DATABASE_URL'])
+    async with AsyncSession(engine) as session:
+        await seed_default_world(session)
+        await session.commit()
+    await engine.dispose()
+
+asyncio.run(run())
+"
+
+# Roll back all migrations (drop all tables)
+alembic downgrade base
+
+# Generate a new migration after changing ORM models
+alembic revision --autogenerate -m "describe_your_change"
+
+# Check if models are in sync with the current migration head
+alembic check
+
+# Show current migration version applied to the database
+alembic current
+
+# Show full migration history
+alembic history --verbose
+```
+
 **Frontend**
 
 ```bash

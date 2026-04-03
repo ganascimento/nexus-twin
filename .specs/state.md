@@ -12,7 +12,7 @@
 |---|---------|--------|-------|
 | 01 | project_setup | done | |
 | 02 | db_models | done | enums.py adicionado retroativamente — Python Enum + String column |
-| 03 | db_migrations_seed | pending | |
+| 03 | db_migrations_seed | done | |
 | 04 | repositories | pending | |
 | 05 | world_state | pending | |
 | 06 | services_entities | pending | |
@@ -47,5 +47,7 @@
 > Record decisions made during development that are not obvious from the code or specs.
 > Format: `[feature] decision made — reason`
 
-- [02_db_models] Python `enum.Enum` + `String` column para campos tipados (`status`, `truck_type`, `agent_type`, etc.) — PostgreSQL native ENUM descartado por custo alto de migration em fase de evolução rápida do schema. Enums centralizados em `backend/src/enums.py`, importados por models, guardrails e agents. Guardrails Pydantic enforçam os valores na camada de aplicação. Campos extensíveis (`event_type`, `action`) permanecem string livre.
+- [02_db_models] Python `enum.Enum` + `String` column para campos tipados
+- [03_db_migrations_seed] `active_route_id` em `Truck` corrigido de `String(50)` para `UUID(as_uuid=True)` — FK para `routes.id` (UUID) exige tipos compatíveis no PostgreSQL
+- [03_db_migrations_seed] `NullPool` no engine de testes — asyncpg connections são bound ao event loop; NullPool evita reuso de conexões entre function-scoped loops do pytest (`status`, `truck_type`, `agent_type`, etc.) — PostgreSQL native ENUM descartado por custo alto de migration em fase de evolução rápida do schema. Enums centralizados em `backend/src/enums.py`, importados por models, guardrails e agents. Guardrails Pydantic enforçam os valores na camada de aplicação. Campos extensíveis (`event_type`, `action`) permanecem string livre.
 
