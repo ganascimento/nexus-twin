@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Float, ForeignKey, TIMESTAMP
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import func
 from . import Base
 
@@ -20,7 +20,7 @@ class Truck(Base):
     factory_id = Column(String(50), ForeignKey("factories.id"), nullable=True)
     cargo = Column(JSONB, nullable=True)
     active_route_id = Column(
-        String(50),
+        UUID(as_uuid=True),
         ForeignKey("routes.id", use_alter=True, name="fk_truck_active_route"),
         nullable=True,
     )
