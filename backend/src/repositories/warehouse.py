@@ -67,9 +67,43 @@ class WarehouseRepository:
         )
         await self._session.execute(stmt)
 
+    async def get_stock(self, warehouse_id: str, material_id: str):
+        result = await self._session.execute(
+            select(WarehouseStock).where(
+                WarehouseStock.warehouse_id == warehouse_id,
+                WarehouseStock.material_id == material_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def atomic_reserve_stock(
+        self, warehouse_id: str, material_id: str, quantity: float
+    ) -> bool:
+        result = await self._session.execute(
+            update(WarehouseStock)
+            .where(
+                WarehouseStock.warehouse_id == warehouse_id,
+                WarehouseStock.material_id == material_id,
+                WarehouseStock.stock - WarehouseStock.stock_reserved >= quantity,
+            )
+            .values(stock_reserved=WarehouseStock.stock_reserved + quantity)
+            .returning(WarehouseStock.warehouse_id)
+        )
+        return result.scalar_one_or_none() is not None
+
     async def get_total_stock_used(self, warehouse_id: str) -> float:
         stmt = select(func.coalesce(func.sum(WarehouseStock.stock), 0)).where(
             WarehouseStock.warehouse_id == warehouse_id
         )
         result = await self._session.execute(stmt)
         return result.scalar()
+
+    async def release_reserved(self, warehouse_id: str, material_id: str, quantity: float) -> None:
+        await self._session.execute(
+            update(WarehouseStock)
+            .where(
+                WarehouseStock.warehouse_id == warehouse_id,
+                WarehouseStock.material_id == material_id,
+            )
+            .values(stock_reserved=WarehouseStock.stock_reserved - quantity)
+        )

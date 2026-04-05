@@ -85,6 +85,15 @@ class FactoryRepository:
         )
         await self._session.execute(stmt)
 
+    async def get_product(self, factory_id: str, material_id: str):
+        result = await self._session.execute(
+            select(FactoryProduct).where(
+                FactoryProduct.factory_id == factory_id,
+                FactoryProduct.material_id == material_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def update_production_rate(
         self, factory_id: str, material_id: str, rate: float
     ) -> None:
@@ -97,3 +106,13 @@ class FactoryRepository:
             .values(production_rate_current=rate)
         )
         await self._session.execute(stmt)
+
+    async def release_reserved(self, factory_id: str, material_id: str, quantity: float) -> None:
+        await self._session.execute(
+            update(FactoryProduct)
+            .where(
+                FactoryProduct.factory_id == factory_id,
+                FactoryProduct.material_id == material_id,
+            )
+            .values(stock_reserved=FactoryProduct.stock_reserved - quantity)
+        )

@@ -59,15 +59,15 @@ agent_decisions ──< (entity_id polimórfico)                                
 
 ### `factory_products`
 
-| Coluna                    | Tipo          | Constraints      | Descrição                             |
-| ------------------------- | ------------- | ---------------- | ------------------------------------- |
-| `factory_id`              | `VARCHAR(50)` | PK, FK→factories |                                       |
-| `material_id`             | `VARCHAR(50)` | PK, FK→materials |                                       |
-| `stock`                   | `FLOAT`       | NOT NULL         | Estoque atual em toneladas            |
+| Coluna                    | Tipo          | Constraints         | Descrição                                                                                          |
+| ------------------------- | ------------- | ------------------- | -------------------------------------------------------------------------------------------------- |
+| `factory_id`              | `VARCHAR(50)` | PK, FK→factories    |                                                                                                    |
+| `material_id`             | `VARCHAR(50)` | PK, FK→materials    |                                                                                                    |
+| `stock`                   | `FLOAT`       | NOT NULL            | Estoque atual em toneladas                                                                         |
 | `stock_reserved`          | `FLOAT`       | NOT NULL, DEFAULT 0 | Estoque reservado por pedidos confirmados (ton) — subtrai do disponível para evitar double-booking |
-| `stock_max`               | `FLOAT`       | NOT NULL         | Capacidade máxima em toneladas        |
-| `production_rate_max`     | `FLOAT`       | NOT NULL         | Teto de produção por tick (ton/tick)  |
-| `production_rate_current` | `FLOAT`       | NOT NULL         | Produção decidida pelo agente no tick |
+| `stock_max`               | `FLOAT`       | NOT NULL            | Capacidade máxima em toneladas                                                                     |
+| `production_rate_max`     | `FLOAT`       | NOT NULL            | Teto de produção por tick (ton/tick)                                                               |
+| `production_rate_current` | `FLOAT`       | NOT NULL            | Produção decidida pelo agente no tick                                                              |
 
 ### `factory_partner_warehouses`
 
@@ -95,13 +95,13 @@ agent_decisions ──< (entity_id polimórfico)                                
 
 ### `warehouse_stocks`
 
-| Coluna         | Tipo          | Constraints       | Descrição                           |
-| -------------- | ------------- | ----------------- | ----------------------------------- |
-| `warehouse_id` | `VARCHAR(50)` | PK, FK→warehouses |                                     |
-| `material_id`  | `VARCHAR(50)` | PK, FK→materials  |                                     |
-| `stock`          | `FLOAT`       | NOT NULL          | Estoque atual (ton)                 |
+| Coluna           | Tipo          | Constraints         | Descrição                                                                                          |
+| ---------------- | ------------- | ------------------- | -------------------------------------------------------------------------------------------------- |
+| `warehouse_id`   | `VARCHAR(50)` | PK, FK→warehouses   |                                                                                                    |
+| `material_id`    | `VARCHAR(50)` | PK, FK→materials    |                                                                                                    |
+| `stock`          | `FLOAT`       | NOT NULL            | Estoque atual (ton)                                                                                |
 | `stock_reserved` | `FLOAT`       | NOT NULL, DEFAULT 0 | Estoque reservado por pedidos confirmados (ton) — subtrai do disponível para evitar double-booking |
-| `min_stock`      | `FLOAT`       | NOT NULL          | Nível mínimo para gatilho preditivo |
+| `min_stock`      | `FLOAT`       | NOT NULL            | Nível mínimo para gatilho preditivo                                                                |
 
 ---
 
@@ -131,23 +131,23 @@ agent_decisions ──< (entity_id polimórfico)                                
 
 ### `trucks`
 
-| Coluna            | Tipo          | Constraints        | Descrição                                              |
-| ----------------- | ------------- | ------------------ | ------------------------------------------------------ |
-| `id`              | `VARCHAR(50)` | PK                 |                                                        |
-| `truck_type`      | `VARCHAR(20)` | NOT NULL           | `proprietario` / `terceiro`                            |
-| `capacity_tons`   | `FLOAT`       | NOT NULL           | Capacidade máxima (ton)                                |
-| `base_lat`        | `FLOAT`       | NOT NULL           | Latitude da base de repouso                            |
-| `base_lng`        | `FLOAT`       | NOT NULL           | Longitude da base de repouso                           |
-| `current_lat`     | `FLOAT`       | NOT NULL           | Posição atual                                          |
-| `current_lng`     | `FLOAT`       | NOT NULL           | Posição atual                                          |
-| `degradation`     | `FLOAT`       | NOT NULL           | Desgaste acumulado (0.0–1.0)                           |
-| `breakdown_risk`  | `FLOAT`       | NOT NULL           | Probabilidade de quebra calculada por viagem (0.0–1.0) |
+| Coluna            | Tipo          | Constraints        | Descrição                                                       |
+| ----------------- | ------------- | ------------------ | --------------------------------------------------------------- |
+| `id`              | `VARCHAR(50)` | PK                 |                                                                 |
+| `truck_type`      | `VARCHAR(20)` | NOT NULL           | `proprietario` / `terceiro`                                     |
+| `capacity_tons`   | `FLOAT`       | NOT NULL           | Capacidade máxima (ton)                                         |
+| `base_lat`        | `FLOAT`       | NOT NULL           | Latitude da base de repouso                                     |
+| `base_lng`        | `FLOAT`       | NOT NULL           | Longitude da base de repouso                                    |
+| `current_lat`     | `FLOAT`       | NOT NULL           | Posição atual                                                   |
+| `current_lng`     | `FLOAT`       | NOT NULL           | Posição atual                                                   |
+| `degradation`     | `FLOAT`       | NOT NULL           | Desgaste acumulado (0.0–1.0)                                    |
+| `breakdown_risk`  | `FLOAT`       | NOT NULL           | Probabilidade de quebra calculada por viagem (0.0–1.0)          |
 | `status`          | `VARCHAR(20)` | NOT NULL           | `idle` / `evaluating` / `in_transit` / `broken` / `maintenance` |
-| `factory_id`      | `VARCHAR(50)` | FK→factories, NULL | Apenas proprietários                                   |
-| `cargo`           | `JSONB`       | NULL               | `{product, quantity, origin, destination}` ou null     |
-| `active_route_id` | `VARCHAR(50)` | FK→routes, NULL    |                                                        |
-| `created_at`      | `TIMESTAMPTZ` | NOT NULL           |                                                        |
-| `updated_at`      | `TIMESTAMPTZ` | NOT NULL           |                                                        |
+| `factory_id`      | `VARCHAR(50)` | FK→factories, NULL | Apenas proprietários                                            |
+| `cargo`           | `JSONB`       | NULL               | `{product, quantity, origin, destination}` ou null              |
+| `active_route_id` | `VARCHAR(50)` | FK→routes, NULL    |                                                                 |
+| `created_at`      | `TIMESTAMPTZ` | NOT NULL           |                                                                 |
+| `updated_at`      | `TIMESTAMPTZ` | NOT NULL           |                                                                 |
 
 ---
 
@@ -205,23 +205,23 @@ agent_decisions ──< (entity_id polimórfico)                                
 
 ### `pending_orders`
 
-| Coluna             | Tipo          | Constraints         | Descrição                                          |
-| ------------------ | ------------- | ------------------- | -------------------------------------------------- |
-| `id`               | `UUID`        | PK                  |                                                    |
-| `requester_type`   | `VARCHAR(20)` | NOT NULL            | `store` / `warehouse`                              |
-| `requester_id`     | `VARCHAR(50)` | NOT NULL            |                                                    |
-| `target_type`      | `VARCHAR(20)` | NOT NULL            | `warehouse` / `factory`                            |
-| `target_id`        | `VARCHAR(50)` | NOT NULL            |                                                    |
-| `material_id`      | `VARCHAR(50)` | FK→materials        |                                                    |
-| `quantity_tons`    | `FLOAT`       | NOT NULL            |                                                    |
-| `status`              | `VARCHAR(20)` | NOT NULL            | `pending` / `confirmed` / `rejected` / `delivered` / `cancelled` |
-| `age_ticks`           | `INTEGER`     | NOT NULL, DEFAULT 0 | Ticks desde a criação                              |
-| `retry_after_tick`    | `INTEGER`     | NULL                | Tick a partir do qual pode retentar após rejeição  |
-| `rejection_reason`    | `TEXT`        | NULL                |                                                    |
+| Coluna                | Tipo          | Constraints         | Descrição                                                          |
+| --------------------- | ------------- | ------------------- | ------------------------------------------------------------------ |
+| `id`                  | `UUID`        | PK                  |                                                                    |
+| `requester_type`      | `VARCHAR(20)` | NOT NULL            | `store` / `warehouse`                                              |
+| `requester_id`        | `VARCHAR(50)` | NOT NULL            |                                                                    |
+| `target_type`         | `VARCHAR(20)` | NOT NULL            | `warehouse` / `factory`                                            |
+| `target_id`           | `VARCHAR(50)` | NOT NULL            |                                                                    |
+| `material_id`         | `VARCHAR(50)` | FK→materials        |                                                                    |
+| `quantity_tons`       | `FLOAT`       | NOT NULL            |                                                                    |
+| `status`              | `VARCHAR(20)` | NOT NULL            | `pending` / `confirmed` / `rejected` / `delivered` / `cancelled`   |
+| `age_ticks`           | `INTEGER`     | NOT NULL, DEFAULT 0 | Ticks desde a criação                                              |
+| `retry_after_tick`    | `INTEGER`     | NULL                | Tick a partir do qual pode retentar após rejeição                  |
+| `rejection_reason`    | `TEXT`        | NULL                |                                                                    |
 | `cancellation_reason` | `TEXT`        | NULL                | Motivo do cancelamento — ex: `target_deleted`, `requester_deleted` |
-| `eta_ticks`           | `INTEGER`     | NULL                | ETA confirmado pelo target                         |
-| `created_at`       | `TIMESTAMPTZ` | NOT NULL            |                                                    |
-| `updated_at`       | `TIMESTAMPTZ` | NOT NULL            |                                                    |
+| `eta_ticks`           | `INTEGER`     | NULL                | ETA confirmado pelo target                                         |
+| `created_at`          | `TIMESTAMPTZ` | NOT NULL            |                                                                    |
+| `updated_at`          | `TIMESTAMPTZ` | NOT NULL            |                                                                    |
 
 ---
 
@@ -231,22 +231,22 @@ Campos com conjunto fixo de valores válidos usam classes `enum.Enum` do Python 
 
 > `event_type` e `action` (AgentDecision) e `event_type` (ChaosEvent) são strings livres — não usam enum porque o conjunto de valores é extensível.
 
-| Enum Class              | Campo(s) de uso                                              | Valores válidos                                                    |
-| ----------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------ |
-| `AgentType`             | `agent_decisions.agent_type`                                 | `factory`, `warehouse`, `store`, `truck`, `master`                 |
-| `TruckType`             | `trucks.truck_type`                                          | `proprietario`, `terceiro`                                         |
-| `TruckStatus`           | `trucks.status`                                              | `idle`, `evaluating`, `in_transit`, `broken`, `maintenance`        |
-| `FactoryStatus`         | `factories.status`                                           | `operating`, `stopped`, `reduced_capacity`                         |
-| `WarehouseStatus`       | `warehouses.status`                                          | `operating`, `rationing`, `offline`                                |
-| `StoreStatus`           | `stores.status`                                              | `open`, `demand_paused`, `offline`                                 |
-| `RouteNodeType`         | `routes.origin_type`, `routes.dest_type`                     | `factory`, `warehouse`, `store`                                    |
-| `RouteStatus`           | `routes.status`                                              | `active`, `completed`, `interrupted`                               |
-| `ChaosEventSource`      | `events.source`                                              | `user`, `master_agent`, `engine`                                   |
-| `ChaosEventEntityType`  | `events.entity_type`                                         | `factory`, `warehouse`, `store`, `truck`                           |
-| `ChaosEventStatus`      | `events.status`                                              | `active`, `resolved`                                               |
-| `OrderStatus`           | `pending_orders.status`                                      | `pending`, `confirmed`, `rejected`, `delivered`, `cancelled`       |
-| `OrderRequesterType`    | `pending_orders.requester_type`                              | `store`, `warehouse`                                               |
-| `OrderTargetType`       | `pending_orders.target_type`                                 | `warehouse`, `factory`                                             |
+| Enum Class             | Campo(s) de uso                          | Valores válidos                                              |
+| ---------------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| `AgentType`            | `agent_decisions.agent_type`             | `factory`, `warehouse`, `store`, `truck`, `master`           |
+| `TruckType`            | `trucks.truck_type`                      | `proprietario`, `terceiro`                                   |
+| `TruckStatus`          | `trucks.status`                          | `idle`, `evaluating`, `in_transit`, `broken`, `maintenance`  |
+| `FactoryStatus`        | `factories.status`                       | `operating`, `stopped`, `reduced_capacity`                   |
+| `WarehouseStatus`      | `warehouses.status`                      | `operating`, `rationing`, `offline`                          |
+| `StoreStatus`          | `stores.status`                          | `open`, `demand_paused`, `offline`                           |
+| `RouteNodeType`        | `routes.origin_type`, `routes.dest_type` | `factory`, `warehouse`, `store`                              |
+| `RouteStatus`          | `routes.status`                          | `active`, `completed`, `interrupted`                         |
+| `ChaosEventSource`     | `events.source`                          | `user`, `master_agent`, `engine`                             |
+| `ChaosEventEntityType` | `events.entity_type`                     | `factory`, `warehouse`, `store`, `truck`                     |
+| `ChaosEventStatus`     | `events.status`                          | `active`, `resolved`                                         |
+| `OrderStatus`          | `pending_orders.status`                  | `pending`, `confirmed`, `rejected`, `delivered`, `cancelled` |
+| `OrderRequesterType`   | `pending_orders.requester_type`          | `store`, `warehouse`                                         |
+| `OrderTargetType`      | `pending_orders.target_type`             | `warehouse`, `factory`                                       |
 
 ---
 
@@ -544,71 +544,71 @@ Gerencia o catálogo de materiais.
 
 ### `FactoryService` — `services/factory.py`
 
-| Método                                                         | Descrição                                         |
-| -------------------------------------------------------------- | ------------------------------------------------- |
-| `list_factories() → list[Factory]`                             | Lista fábricas com produtos e estoque atuais      |
-| `get_factory(id: str) → Factory`                               | Detalhe completo (produtos, caminhões, parceiros) |
-| `create_factory(data: FactoryCreate) → Factory`                | Cria fábrica com produtos e armazéns parceiros    |
-| `update_factory(id: str, data: FactoryUpdate) → Factory`       | Edita materiais, capacidades, parceiros           |
+| Método                                                         | Descrição                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_factories() → list[Factory]`                             | Lista fábricas com produtos e estoque atuais                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `get_factory(id: str) → Factory`                               | Detalhe completo (produtos, caminhões, parceiros)                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `create_factory(data: FactoryCreate) → Factory`                | Cria fábrica com produtos e armazéns parceiros                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `update_factory(id: str, data: FactoryUpdate) → Factory`       | Edita materiais, capacidades, parceiros                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `delete_factory(id: str) → None`                               | Remove fábrica: (1) cancela `pending_orders` com `target_id = id` e status `pending`/`confirmed`, definindo `cancellation_reason = 'target_deleted'`; (2) pedidos com caminhão já em trânsito (`status = confirmed` + rota ativa) mantêm status — o caminhão completa a entrega normalmente; (3) publica evento `entity_removed` no canal `nexus:events`; (4) na avaliação do próximo tick, requesters com pedidos cancelados são acordados para buscar alternativas |
-| `adjust_stock(id: str, material_id: str, delta: float) → None` | Ajuste manual de estoque por produto              |
+| `adjust_stock(id: str, material_id: str, delta: float) → None` | Ajuste manual de estoque por produto                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ---
 
 ### `WarehouseService` — `services/warehouse.py`
 
-| Método                                                         | Descrição                                       |
-| -------------------------------------------------------------- | ----------------------------------------------- |
-| `list_warehouses() → list[Warehouse]`                          | Lista armazéns com estoque atual por produto    |
-| `get_warehouse(id: str) → Warehouse`                           | Detalhe completo                                |
-| `create_warehouse(data: WarehouseCreate) → Warehouse`          | Cria armazém com materiais aceitos e mínimos    |
-| `update_warehouse(id: str, data: WarehouseUpdate) → Warehouse` | Edita materiais, capacidades, mínimos           |
-| `delete_warehouse(id: str) → None`                             | Remove armazém: (1) cancela `pending_orders` com `target_id = id` e status `pending`/`confirmed`, definindo `cancellation_reason = 'target_deleted'`; (2) pedidos com caminhão já em trânsito mantêm status — o caminhão completa a entrega e fica `idle` ao chegar; (3) publica evento `entity_removed`; (4) requesters com pedidos cancelados acordam no próximo tick |
-| `adjust_stock(id: str, material_id: str, delta: float) → None` | Ajuste manual de estoque por produto            |
-| `confirm_order(order_id: UUID, eta_ticks: int) → PendingOrder \| None` | Reserva estoque atomicamente via `UPDATE warehouse_stocks SET stock_reserved = stock_reserved + qty WHERE stock - stock_reserved >= qty`; retorna `None` se estoque disponível insuficiente (sem atualização parcial) |
-| `reject_order(order_id: UUID, reason: str) → PendingOrder`     | Rejeita pedido com motivo                       |
+| Método                                                                 | Descrição                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_warehouses() → list[Warehouse]`                                  | Lista armazéns com estoque atual por produto                                                                                                                                                                                                                                                                                                                            |
+| `get_warehouse(id: str) → Warehouse`                                   | Detalhe completo                                                                                                                                                                                                                                                                                                                                                        |
+| `create_warehouse(data: WarehouseCreate) → Warehouse`                  | Cria armazém com materiais aceitos e mínimos                                                                                                                                                                                                                                                                                                                            |
+| `update_warehouse(id: str, data: WarehouseUpdate) → Warehouse`         | Edita materiais, capacidades, mínimos                                                                                                                                                                                                                                                                                                                                   |
+| `delete_warehouse(id: str) → None`                                     | Remove armazém: (1) cancela `pending_orders` com `target_id = id` e status `pending`/`confirmed`, definindo `cancellation_reason = 'target_deleted'`; (2) pedidos com caminhão já em trânsito mantêm status — o caminhão completa a entrega e fica `idle` ao chegar; (3) publica evento `entity_removed`; (4) requesters com pedidos cancelados acordam no próximo tick |
+| `adjust_stock(id: str, material_id: str, delta: float) → None`         | Ajuste manual de estoque por produto                                                                                                                                                                                                                                                                                                                                    |
+| `confirm_order(order_id: UUID, eta_ticks: int) → PendingOrder \| None` | Reserva estoque atomicamente via `UPDATE warehouse_stocks SET stock_reserved = stock_reserved + qty WHERE stock - stock_reserved >= qty`; retorna `None` se estoque disponível insuficiente (sem atualização parcial)                                                                                                                                                   |
+| `reject_order(order_id: UUID, reason: str) → PendingOrder`             | Rejeita pedido com motivo                                                                                                                                                                                                                                                                                                                                               |
 
 ---
 
 ### `StoreService` — `services/store.py`
 
-| Método                                                         | Descrição                                         |
-| -------------------------------------------------------------- | ------------------------------------------------- |
-| `list_stores() → list[Store]`                                  | Lista lojas com estoque atual por produto         |
-| `get_store(id: str) → Store`                                   | Detalhe completo                                  |
-| `create_store(data: StoreCreate) → Store`                      | Cria loja com materiais, demanda e reorder points |
-| `update_store(id: str, data: StoreUpdate) → Store`             | Edita materiais, demanda, reorder points          |
+| Método                                                         | Descrição                                                                                                                                                                                                     |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_stores() → list[Store]`                                  | Lista lojas com estoque atual por produto                                                                                                                                                                     |
+| `get_store(id: str) → Store`                                   | Detalhe completo                                                                                                                                                                                              |
+| `create_store(data: StoreCreate) → Store`                      | Cria loja com materiais, demanda e reorder points                                                                                                                                                             |
+| `update_store(id: str, data: StoreUpdate) → Store`             | Edita materiais, demanda, reorder points                                                                                                                                                                      |
 | `delete_store(id: str) → None`                                 | Remove loja: cancela pedidos com `requester_id = id` via `OrderService.cancel_orders_from()`; caminhões em trânsito para a loja completam a entrega e ficam `idle` ao chegar; publica evento `entity_removed` |
-| `adjust_stock(id: str, material_id: str, delta: float) → None` | Ajuste manual de estoque por produto              |
-| `create_order(data: PendingOrderCreate) → PendingOrder`        | Cria pedido de reposição para armazém ou fábrica  |
+| `adjust_stock(id: str, material_id: str, delta: float) → None` | Ajuste manual de estoque por produto                                                                                                                                                                          |
+| `create_order(data: PendingOrderCreate) → PendingOrder`        | Cria pedido de reposição para armazém ou fábrica                                                                                                                                                              |
 
 ---
 
 ### `TruckService` — `services/truck.py`
 
-| Método                                                    | Descrição                                                      |
-| --------------------------------------------------------- | -------------------------------------------------------------- |
-| `list_trucks() → list[Truck]`                             | Lista caminhões com posição atual, carga e degradação          |
-| `get_truck(id: str) → Truck`                              | Detalhe completo (rota ativa, histórico de decisões)           |
-| `create_truck(data: TruckCreate) → Truck`                 | Adiciona caminhão (proprietário ou terceiro)                   |
-| `delete_truck(id: str) → None`                            | Remove caminhão; dispara reassinalação de carga se em trânsito |
-| `assign_route(truck_id: str, route: RouteCreate) → Route` | Persiste rota Valhalla com timestamps                          |
-| `complete_route(truck_id: str) → None`                    | Marca rota como concluída, atualiza posição e degradação       |
-| `interrupt_route(truck_id: str, reason: str) → None`      | Interrompe rota por quebra ou bloqueio                         |
-| `schedule_maintenance(truck_id: str) → None`              | Inicia manutenção; bloqueia viagens pelo período calculado     |
+| Método                                                    | Descrição                                                                                                                                              |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `list_trucks() → list[Truck]`                             | Lista caminhões com posição atual, carga e degradação                                                                                                  |
+| `get_truck(id: str) → Truck`                              | Detalhe completo (rota ativa, histórico de decisões)                                                                                                   |
+| `create_truck(data: TruckCreate) → Truck`                 | Adiciona caminhão (proprietário ou terceiro)                                                                                                           |
+| `delete_truck(id: str) → None`                            | Remove caminhão; dispara reassinalação de carga se em trânsito                                                                                         |
+| `assign_route(truck_id: str, route: RouteCreate) → Route` | Persiste rota Valhalla com timestamps                                                                                                                  |
+| `complete_route(truck_id: str) → None`                    | Marca rota como concluída, atualiza posição e degradação                                                                                               |
+| `interrupt_route(truck_id: str, reason: str) → None`      | Interrompe rota por quebra ou bloqueio                                                                                                                 |
+| `schedule_maintenance(truck_id: str) → None`              | Inicia manutenção; bloqueia viagens pelo período calculado                                                                                             |
 | `try_lock_for_evaluation(truck_id: str) → bool`           | Wrapper sobre `TruckRepository.try_lock_for_evaluation`; retorna `False` se o caminhão não estava `idle` — o engine descarta a task sem criar o agente |
 
 ---
 
 ### `ChaosService` — `services/chaos.py`
 
-| Método                                                         | Descrição                                                  |
-| -------------------------------------------------------------- | ---------------------------------------------------------- |
-| `list_active_events() → list[ChaosEvent]`                      | Lista eventos de caos ativos                               |
-| `inject_event(data: ChaosEventCreate) → ChaosEvent`            | Injeta evento com source=`user`                            |
+| Método                                                                 | Descrição                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_active_events() → list[ChaosEvent]`                              | Lista eventos de caos ativos                                                                                                                                                                                                                                                                                            |
+| `inject_event(data: ChaosEventCreate) → ChaosEvent`                    | Injeta evento com source=`user`                                                                                                                                                                                                                                                                                         |
 | `inject_autonomous_event(data: ChaosEventCreate) → ChaosEvent \| None` | Check+insert atômico via `SELECT FOR UPDATE` na tabela `events` dentro de uma única transação: lê `count_active()` e `get_last_resolved_autonomous_tick()` com lock antes de inserir; retorna `None` se cooldown não passou ou há evento ativo — **`can_inject_autonomous_event()` não deve ser chamado separadamente** |
-| `resolve_event(event_id: UUID) → ChaosEvent`                           | Resolve evento, registra `tick_end`                        |
-| `can_inject_autonomous_event() → bool`                                  | Consulta somente-leitura para exibição no dashboard; a verificação de escrita acontece dentro de `inject_autonomous_event` com lock exclusivo |
+| `resolve_event(event_id: UUID) → ChaosEvent`                           | Resolve evento, registra `tick_end`                                                                                                                                                                                                                                                                                     |
+| `can_inject_autonomous_event() → bool`                                 | Consulta somente-leitura para exibição no dashboard; a verificação de escrita acontece dentro de `inject_autonomous_event` com lock exclusivo                                                                                                                                                                           |
 
 ---
 
@@ -633,12 +633,12 @@ Cálculos determinísticos sem IA. Chamado pelo engine a cada tick.
 
 Avalia, a cada tick, quais agentes devem ser acordados.
 
-| Método                                                             | Descrição                                                                                    |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| `evaluate_all(world: WorldState) → list[AgentTrigger]`             | Ponto de entrada — agrega todos os triggers do tick; inclui triggers de `order_cancelled_target_deleted` para agentes com pedidos cancelados por deleção de entidade (ver seção 10.4) |
-| `evaluate_store_triggers(store: Store) → list[AgentTrigger]`       | `(stock[p] - reorder_point[p]) / demand_rate[p] < lead_time × 1.5`; também emite trigger `order_cancelled_target_deleted` se a loja tiver pedidos com `status = 'cancelled'` não processados |
-| `evaluate_warehouse_triggers(wh: Warehouse) → list[AgentTrigger]`  | Para cada produto: `(stock[p] - stock_reserved[p] - min_stock[p]) / outbound_rate[p] < lead_time × 1.5` onde `outbound_rate[p]` é a média das saídas dos últimos 6 ticks (janela deslizante, não valor estático) — evita oscilação por demanda temporária baixa |
-| `evaluate_factory_triggers(factory: Factory) → list[AgentTrigger]` | Estoque de saída perto do máximo; pedidos urgentes de armazéns                               |
+| Método                                                             | Descrição                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `evaluate_all(world: WorldState) → list[AgentTrigger]`             | Ponto de entrada — agrega todos os triggers do tick; inclui triggers de `order_cancelled_target_deleted` para agentes com pedidos cancelados por deleção de entidade (ver seção 10.4)                                                                                     |
+| `evaluate_store_triggers(store: Store) → list[AgentTrigger]`       | `(stock[p] - reorder_point[p]) / demand_rate[p] < lead_time × 1.5`; também emite trigger `order_cancelled_target_deleted` se a loja tiver pedidos com `status = 'cancelled'` não processados                                                                              |
+| `evaluate_warehouse_triggers(wh: Warehouse) → list[AgentTrigger]`  | Para cada produto: `(stock[p] - stock_reserved[p] - min_stock[p]) / outbound_rate[p] < lead_time × 1.5` onde `outbound_rate[p]` é a média das saídas dos últimos 6 ticks (janela deslizante, não valor estático) — evita oscilação por demanda temporária baixa           |
+| `evaluate_factory_triggers(factory: Factory) → list[AgentTrigger]` | Estoque de saída perto do máximo; pedidos urgentes de armazéns                                                                                                                                                                                                            |
 | `evaluate_truck_triggers(truck: Truck) → list[AgentTrigger]`       | Eventos pendentes: `route_blocked`, `arrived`, `breakdown`, `new_order`, `contract_proposal`; para `contract_proposal`, chama `TruckService.try_lock_for_evaluation()` antes de emitir o trigger — se retornar `False`, o trigger é descartado (caminhão já em avaliação) |
 
 ---
@@ -647,16 +647,16 @@ Avalia, a cada tick, quais agentes devem ser acordados.
 
 Gerencia o ciclo de vida dos `pending_orders`.
 
-| Método                                                                       | Descrição                                           |
-| ---------------------------------------------------------------------------- | --------------------------------------------------- |
-| `create_order(data: PendingOrderCreate) → PendingOrder`                      | Cria pedido, age_ticks=0                            |
-| `increment_age_ticks(tick: int) → None`                                      | Incrementa `age_ticks` de todos os pedidos ativos   |
-| `get_pending_orders_for(target_id: str) → list[PendingOrder]`                | Pedidos aguardando uma entidade específica          |
-| `confirm_order(order_id: UUID, eta_ticks: int) → PendingOrder`                            | Muda status para `confirmed`, salva ETA; a reserva de estoque é feita pelo `WarehouseService.confirm_order()` antes de chamar este método |
-| `reject_order(order_id: UUID, reason: str, retry_after: int) → PendingOrder`              | Muda status para `rejected`, salva motivo e backoff |
-| `mark_delivered(order_id: UUID) → PendingOrder`                                           | Muda status para `delivered`; libera `stock_reserved` na entidade de origem |
-| `cancel_orders_targeting(target_id: str, reason: str) → list[PendingOrder]`               | Cancela pedidos `pending`/`confirmed` cujo `target_id` é a entidade removida; pedidos com rota de caminhão já ativa são ignorados (entrega prossegue); retorna lista de requesters afetados |
-| `cancel_orders_from(requester_id: str, reason: str) → list[PendingOrder]`                 | Cancela pedidos emitidos por uma entidade removida (ex: loja deletada) |
+| Método                                                                       | Descrição                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_order(data: PendingOrderCreate) → PendingOrder`                      | Cria pedido, age_ticks=0                                                                                                                                                                    |
+| `increment_age_ticks(tick: int) → None`                                      | Incrementa `age_ticks` de todos os pedidos ativos                                                                                                                                           |
+| `get_pending_orders_for(target_id: str) → list[PendingOrder]`                | Pedidos aguardando uma entidade específica                                                                                                                                                  |
+| `confirm_order(order_id: UUID, eta_ticks: int) → PendingOrder`               | Muda status para `confirmed`, salva ETA; a reserva de estoque é feita pelo `WarehouseService.confirm_order()` antes de chamar este método                                                   |
+| `reject_order(order_id: UUID, reason: str, retry_after: int) → PendingOrder` | Muda status para `rejected`, salva motivo e backoff                                                                                                                                         |
+| `mark_delivered(order_id: UUID) → PendingOrder`                              | Muda status para `delivered`; libera `stock_reserved` na entidade de origem                                                                                                                 |
+| `cancel_orders_targeting(target_id: str, reason: str) → list[PendingOrder]`  | Cancela pedidos `pending`/`confirmed` cujo `target_id` é a entidade removida; pedidos com rota de caminhão já ativa são ignorados (entrega prossegue); retorna lista de requesters afetados |
+| `cancel_orders_from(requester_id: str, reason: str) → list[PendingOrder]`    | Cancela pedidos emitidos por uma entidade removida (ex: loja deletada)                                                                                                                      |
 
 ---
 
@@ -683,120 +683,120 @@ Cada repository vive em `backend/src/repositories/<entidade>.py`.
 
 ### `MaterialRepository` — `repositories/material.py`
 
-| Método                                                       | Descrição                                              |
-|--------------------------------------------------------------|--------------------------------------------------------|
-| `get_all(active_only: bool) → list[Material]`                | Lista materiais                                        |
-| `get_by_id(id: str) → Material \| None`                      | Busca por id                                           |
-| `create(data: dict) → Material`                              | Insere novo material                                   |
-| `update(id: str, data: dict) → Material`                     | Atualiza campos                                        |
-| `has_linked_entities(id: str) → bool`                        | Verifica se há fábricas/armazéns/lojas vinculadas      |
+| Método                                        | Descrição                                         |
+| --------------------------------------------- | ------------------------------------------------- |
+| `get_all(active_only: bool) → list[Material]` | Lista materiais                                   |
+| `get_by_id(id: str) → Material \| None`       | Busca por id                                      |
+| `create(data: dict) → Material`               | Insere novo material                              |
+| `update(id: str, data: dict) → Material`      | Atualiza campos                                   |
+| `has_linked_entities(id: str) → bool`         | Verifica se há fábricas/armazéns/lojas vinculadas |
 
 ---
 
 ### `FactoryRepository` — `repositories/factory.py`
 
-| Método                                                                        | Descrição                                                       |
-|-------------------------------------------------------------------------------|-----------------------------------------------------------------|
-| `get_all() → list[Factory]`                                                   | Lista fábricas com produtos (join `factory_products`)           |
-| `get_by_id(id: str) → Factory \| None`                                        | Detalhe com produtos, caminhões vinculados e parceiros          |
-| `create(data: dict) → Factory`                                                | Insere fábrica + `factory_products` + `factory_partner_warehouses` |
-| `update(id: str, data: dict) → Factory`                                       | Atualiza campos + reconcilia products/partners                  |
-| `delete(id: str) → None`                                                      | Remove fábrica e registros dependentes                          |
-| `update_product_stock(factory_id: str, material_id: str, delta: float) → None`| Incrementa/decrementa `factory_products.stock`                  |
-| `update_production_rate(factory_id: str, material_id: str, rate: float) → None`| Atualiza `production_rate_current`                             |
+| Método                                                                          | Descrição                                                          |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `get_all() → list[Factory]`                                                     | Lista fábricas com produtos (join `factory_products`)              |
+| `get_by_id(id: str) → Factory \| None`                                          | Detalhe com produtos, caminhões vinculados e parceiros             |
+| `create(data: dict) → Factory`                                                  | Insere fábrica + `factory_products` + `factory_partner_warehouses` |
+| `update(id: str, data: dict) → Factory`                                         | Atualiza campos + reconcilia products/partners                     |
+| `delete(id: str) → None`                                                        | Remove fábrica e registros dependentes                             |
+| `update_product_stock(factory_id: str, material_id: str, delta: float) → None`  | Incrementa/decrementa `factory_products.stock`                     |
+| `update_production_rate(factory_id: str, material_id: str, rate: float) → None` | Atualiza `production_rate_current`                                 |
 
 ---
 
 ### `WarehouseRepository` — `repositories/warehouse.py`
 
-| Método                                                                          | Descrição                                                      |
-|---------------------------------------------------------------------------------|----------------------------------------------------------------|
-| `get_all() → list[Warehouse]`                                                   | Lista armazéns com estoque por produto                         |
-| `get_by_id(id: str) → Warehouse \| None`                                        | Detalhe com `warehouse_stocks`                                 |
-| `create(data: dict) → Warehouse`                                                | Insere armazém + `warehouse_stocks`                            |
-| `update(id: str, data: dict) → Warehouse`                                       | Atualiza campos + reconcilia stocks                            |
-| `delete(id: str) → None`                                                        | Remove armazém                                                 |
-| `update_stock(warehouse_id: str, material_id: str, delta: float) → None`        | Incrementa/decrementa estoque de um produto                    |
-| `get_total_stock_used(warehouse_id: str) → float`                               | Soma do estoque atual de todos os produtos (verifica capacidade)|
+| Método                                                                   | Descrição                                                        |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `get_all() → list[Warehouse]`                                            | Lista armazéns com estoque por produto                           |
+| `get_by_id(id: str) → Warehouse \| None`                                 | Detalhe com `warehouse_stocks`                                   |
+| `create(data: dict) → Warehouse`                                         | Insere armazém + `warehouse_stocks`                              |
+| `update(id: str, data: dict) → Warehouse`                                | Atualiza campos + reconcilia stocks                              |
+| `delete(id: str) → None`                                                 | Remove armazém                                                   |
+| `update_stock(warehouse_id: str, material_id: str, delta: float) → None` | Incrementa/decrementa estoque de um produto                      |
+| `get_total_stock_used(warehouse_id: str) → float`                        | Soma do estoque atual de todos os produtos (verifica capacidade) |
 
 ---
 
 ### `StoreRepository` — `repositories/store.py`
 
-| Método                                                                      | Descrição                                               |
-|-----------------------------------------------------------------------------|---------------------------------------------------------|
-| `get_all() → list[Store]`                                                   | Lista lojas com estoque por produto                     |
-| `get_by_id(id: str) → Store \| None`                                        | Detalhe com `store_stocks`                              |
-| `create(data: dict) → Store`                                                | Insere loja + `store_stocks`                            |
-| `update(id: str, data: dict) → Store`                                       | Atualiza campos + reconcilia stocks                     |
-| `delete(id: str) → None`                                                    | Remove loja                                             |
-| `update_stock(store_id: str, material_id: str, delta: float) → None`        | Incrementa/decrementa estoque de um produto             |
+| Método                                                               | Descrição                                   |
+| -------------------------------------------------------------------- | ------------------------------------------- |
+| `get_all() → list[Store]`                                            | Lista lojas com estoque por produto         |
+| `get_by_id(id: str) → Store \| None`                                 | Detalhe com `store_stocks`                  |
+| `create(data: dict) → Store`                                         | Insere loja + `store_stocks`                |
+| `update(id: str, data: dict) → Store`                                | Atualiza campos + reconcilia stocks         |
+| `delete(id: str) → None`                                             | Remove loja                                 |
+| `update_stock(store_id: str, material_id: str, delta: float) → None` | Incrementa/decrementa estoque de um produto |
 
 ---
 
 ### `TruckRepository` — `repositories/truck.py`
 
-| Método                                                                         | Descrição                                              |
-|--------------------------------------------------------------------------------|--------------------------------------------------------|
-| `get_all() → list[Truck]`                                                      | Lista todos os caminhões                               |
-| `get_by_id(id: str) → Truck \| None`                                           |                                                        |
-| `get_by_factory(factory_id: str) → list[Truck]`                                | Caminhões proprietários de uma fábrica                 |
-| `create(data: dict) → Truck`                                                   | Insere caminhão                                        |
-| `delete(id: str) → None`                                                       | Remove caminhão                                        |
-| `update_status(id: str, status: str) → None`                                   | Atualiza `status`                                                   |
-| `try_lock_for_evaluation(truck_id: str) → bool`                                | `SELECT ... WHERE id = ? AND status = 'idle' FOR UPDATE SKIP LOCKED` — se encontrar a linha, muda `status → 'evaluating'` e flush; retorna `True` se bem-sucedido, `False` se o caminhão não era `idle` ou a linha já estava bloqueada por outra transação |
-| `update_position(id: str, lat: float, lng: float) → None`                      | Atualiza `current_lat/lng`                             |
-| `update_degradation(id: str, degradation: float, breakdown_risk: float) → None`| Atualiza desgaste e risco                              |
-| `set_cargo(id: str, cargo: dict \| None) → None`                               | Define ou limpa a carga atual                          |
-| `set_active_route(id: str, route_id: UUID \| None) → None`                     | Vincula ou desvincula rota ativa                       |
+| Método                                                                          | Descrição                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_all() → list[Truck]`                                                       | Lista todos os caminhões                                                                                                                                                                                                                                   |
+| `get_by_id(id: str) → Truck \| None`                                            |                                                                                                                                                                                                                                                            |
+| `get_by_factory(factory_id: str) → list[Truck]`                                 | Caminhões proprietários de uma fábrica                                                                                                                                                                                                                     |
+| `create(data: dict) → Truck`                                                    | Insere caminhão                                                                                                                                                                                                                                            |
+| `delete(id: str) → None`                                                        | Remove caminhão                                                                                                                                                                                                                                            |
+| `update_status(id: str, status: str) → None`                                    | Atualiza `status`                                                                                                                                                                                                                                          |
+| `try_lock_for_evaluation(truck_id: str) → bool`                                 | `SELECT ... WHERE id = ? AND status = 'idle' FOR UPDATE SKIP LOCKED` — se encontrar a linha, muda `status → 'evaluating'` e flush; retorna `True` se bem-sucedido, `False` se o caminhão não era `idle` ou a linha já estava bloqueada por outra transação |
+| `update_position(id: str, lat: float, lng: float) → None`                       | Atualiza `current_lat/lng`                                                                                                                                                                                                                                 |
+| `update_degradation(id: str, degradation: float, breakdown_risk: float) → None` | Atualiza desgaste e risco                                                                                                                                                                                                                                  |
+| `set_cargo(id: str, cargo: dict \| None) → None`                                | Define ou limpa a carga atual                                                                                                                                                                                                                              |
+| `set_active_route(id: str, route_id: UUID \| None) → None`                      | Vincula ou desvincula rota ativa                                                                                                                                                                                                                           |
 
 ---
 
 ### `RouteRepository` — `repositories/route.py`
 
-| Método                                                              | Descrição                                        |
-|---------------------------------------------------------------------|--------------------------------------------------|
-| `create(data: dict) → Route`                                        | Persiste rota com path e timestamps (PostGIS)    |
-| `get_by_id(id: UUID) → Route \| None`                               |                                                  |
-| `get_active_by_truck(truck_id: str) → Route \| None`                | Rota com status `active` do caminhão             |
-| `update_status(id: UUID, status: str, completed_at=None) → None`    | Marca rota como `completed` ou `interrupted`     |
+| Método                                                           | Descrição                                     |
+| ---------------------------------------------------------------- | --------------------------------------------- |
+| `create(data: dict) → Route`                                     | Persiste rota com path e timestamps (PostGIS) |
+| `get_by_id(id: UUID) → Route \| None`                            |                                               |
+| `get_active_by_truck(truck_id: str) → Route \| None`             | Rota com status `active` do caminhão          |
+| `update_status(id: UUID, status: str, completed_at=None) → None` | Marca rota como `completed` ou `interrupted`  |
 
 ---
 
 ### `OrderRepository` — `repositories/order.py`
 
-| Método                                                                            | Descrição                                              |
-|-----------------------------------------------------------------------------------|--------------------------------------------------------|
-| `create(data: dict) → PendingOrder`                                               | Cria pedido com `age_ticks=0`                          |
-| `get_by_id(id: UUID) → PendingOrder \| None`                                      |                                                        |
-| `get_pending_for_target(target_id: str) → list[PendingOrder]`                     | Pedidos aguardando uma entidade                        |
-| `get_pending_for_requester(requester_id: str) → list[PendingOrder]`               | Pedidos emitidos por uma entidade                      |
-| `increment_all_age_ticks() → None`                                                | Bulk update — incrementa `age_ticks` de todos os ativos|
-| `update_status(id: UUID, status: str, **kwargs) → PendingOrder`                   | Atualiza status + campos opcionais (eta, rejection_reason, cancellation_reason) |
+| Método                                                                                             | Descrição                                                                                                                                                               |
+| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create(data: dict) → PendingOrder`                                                                | Cria pedido com `age_ticks=0`                                                                                                                                           |
+| `get_by_id(id: UUID) → PendingOrder \| None`                                                       |                                                                                                                                                                         |
+| `get_pending_for_target(target_id: str) → list[PendingOrder]`                                      | Pedidos aguardando uma entidade                                                                                                                                         |
+| `get_pending_for_requester(requester_id: str) → list[PendingOrder]`                                | Pedidos emitidos por uma entidade                                                                                                                                       |
+| `increment_all_age_ticks() → None`                                                                 | Bulk update — incrementa `age_ticks` de todos os ativos                                                                                                                 |
+| `update_status(id: UUID, status: str, **kwargs) → PendingOrder`                                    | Atualiza status + campos opcionais (eta, rejection_reason, cancellation_reason)                                                                                         |
 | `bulk_cancel_by_target(target_id: str, reason: str, skip_active_routes: bool = True) → list[UUID]` | Cancela em bulk pedidos de um target; se `skip_active_routes=True`, ignora pedidos onde já há caminhão em rota (entrega prossegue); retorna IDs dos requesters afetados |
-| `bulk_cancel_by_requester(requester_id: str, reason: str) → None`                 | Cancela em bulk pedidos emitidos por uma entidade removida |
+| `bulk_cancel_by_requester(requester_id: str, reason: str) → None`                                  | Cancela em bulk pedidos emitidos por uma entidade removida                                                                                                              |
 
 ---
 
 ### `EventRepository` — `repositories/event.py`
 
-| Método                                                              | Descrição                                              |
-|---------------------------------------------------------------------|--------------------------------------------------------|
-| `get_active() → list[ChaosEvent]`                                   | Eventos de caos ativos                                 |
-| `create(data: dict) → ChaosEvent`                                   | Persiste novo evento                                   |
-| `resolve(id: UUID, tick_end: int) → ChaosEvent`                     | Marca evento como resolvido                            |
-| `count_active() → int`                                              | Verifica empilhamento (máx 1 evento autônomo por vez)  |
-| `get_last_resolved_autonomous_tick() → int \| None`                 | Tick de resolução do último evento autônomo (cooldown) |
+| Método                                              | Descrição                                              |
+| --------------------------------------------------- | ------------------------------------------------------ |
+| `get_active() → list[ChaosEvent]`                   | Eventos de caos ativos                                 |
+| `create(data: dict) → ChaosEvent`                   | Persiste novo evento                                   |
+| `resolve(id: UUID, tick_end: int) → ChaosEvent`     | Marca evento como resolvido                            |
+| `count_active() → int`                              | Verifica empilhamento (máx 1 evento autônomo por vez)  |
+| `get_last_resolved_autonomous_tick() → int \| None` | Tick de resolução do último evento autônomo (cooldown) |
 
 ---
 
 ### `AgentDecisionRepository` — `repositories/agent_decision.py`
 
-| Método                                                                             | Descrição                                              |
-|------------------------------------------------------------------------------------|--------------------------------------------------------|
-| `create(data: dict) → AgentDecision`                                               | Persiste decisão de um agente                          |
-| `get_recent_by_entity(entity_id: str, limit: int) → list[AgentDecision]`           | Últimas N decisões de uma entidade (memória do agente) |
-| `get_all(entity_id: str \| None, limit: int) → list[AgentDecision]`                | Lista decisões com filtro opcional por entidade        |
+| Método                                                                   | Descrição                                              |
+| ------------------------------------------------------------------------ | ------------------------------------------------------ |
+| `create(data: dict) → AgentDecision`                                     | Persiste decisão de um agente                          |
+| `get_recent_by_entity(entity_id: str, limit: int) → list[AgentDecision]` | Últimas N decisões de uma entidade (memória do agente) |
+| `get_all(entity_id: str \| None, limit: int) → list[AgentDecision]`      | Lista decisões com filtro opcional por entidade        |
 
 ---
 
@@ -1147,6 +1147,7 @@ RETURNING *;
 ```
 
 **Regras:**
+
 - `stock_reserved` é incrementado em `confirm_order` e decrementado em `mark_delivered` e em cancelamentos
 - O estoque **disponível real** para novos pedidos é sempre `stock - stock_reserved`, nunca `stock` sozinho
 - `WarehouseService.confirm_order()` retorna `None` se o UPDATE retornar 0 rows — o agente deve tratar como rejeição
@@ -1222,17 +1223,18 @@ async def inject_autonomous_event(data: ChaosEventCreate) -> ChaosEvent | None:
 
 #### Regras por status do pedido no momento da deleção:
 
-| Status do pedido | Há caminhão com rota ativa? | Ação                                                              |
-| ---------------- | --------------------------- | ----------------------------------------------------------------- |
+| Status do pedido | Há caminhão com rota ativa? | Ação                                                                        |
+| ---------------- | --------------------------- | --------------------------------------------------------------------------- |
 | `pending`        | Não                         | Cancelar (`status = 'cancelled'`, `cancellation_reason = 'target_deleted'`) |
-| `confirmed`      | Não                         | Cancelar — reserva de estoque é liberada (`stock_reserved -= qty`) |
-| `confirmed`      | Sim (caminhão em rota)      | **Manter** — caminhão completa entrega normalmente               |
-| `rejected`       | —                           | Ignorar — já resolvido                                            |
-| `delivered`      | —                           | Ignorar — já resolvido                                            |
+| `confirmed`      | Não                         | Cancelar — reserva de estoque é liberada (`stock_reserved -= qty`)          |
+| `confirmed`      | Sim (caminhão em rota)      | **Manter** — caminhão completa entrega normalmente                          |
+| `rejected`       | —                           | Ignorar — já resolvido                                                      |
+| `delivered`      | —                           | Ignorar — já resolvido                                                      |
 
 #### Comportamento do caminhão ao chegar em entidade deletada:
 
 Quando um caminhão completa uma rota para um destino que não existe mais:
+
 1. `truck_arrived` event é disparado normalmente pelo engine
 2. O agente do caminhão verifica que `dest_id` não existe mais
 3. Caminhão descarrega a carga (estoque é creditado a ninguém — carga é perdida no mundo)
@@ -1298,6 +1300,7 @@ async def try_lock_for_evaluation(self, truck_id: str) -> bool:
 **Por que `SELECT FOR UPDATE SKIP LOCKED` e não `UPDATE ... WHERE`:** o `UPDATE` condicional é atômico no PostgreSQL, mas a mudança só fica visível para outras sessões após o commit — se duas tasks entrarem antes de qualquer commit, ambas leem `idle` e ambas retornam `rowcount=1`. Com `SKIP LOCKED`, a segunda transação pula a linha já bloqueada e retorna `None` imediatamente, sem esperar nem sem ver o estado desatualizado.
 
 **Fluxo no agente:**
+
 - Se o agente aceita: `status → in_transit`
 - Se o agente recusa: `status → idle` (libera para próxima proposta)
 - Se o agente falha/timeout: `status → idle` (rollback no finally block)

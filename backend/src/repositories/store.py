@@ -52,6 +52,15 @@ class StoreRepository:
         await self._session.execute(delete(StoreStock).where(StoreStock.store_id == id))
         await self._session.execute(delete(Store).where(Store.id == id))
 
+    async def get_stock(self, store_id: str, material_id: str):
+        result = await self._session.execute(
+            select(StoreStock).where(
+                StoreStock.store_id == store_id,
+                StoreStock.material_id == material_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def update_stock(self, store_id: str, material_id: str, delta: float) -> None:
         stmt = (
             update(StoreStock)
