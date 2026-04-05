@@ -20,7 +20,7 @@ Simulação de um **mundo fechado e autônomo** de cadeia de suprimentos, inspir
 | ------------- | --------------------------------------------------- |
 | Runtime       | Python 3.11+                                        |
 | Framework     | FastAPI                                             |
-| IA / Agentes  | OpenAI API (`gpt-4o-mini`) via LangGraph             |
+| IA / Agentes  | OpenAI API (`gpt-4o-mini`) via LangGraph            |
 | Orquestração  | LangGraph — `StateGraph` por agente (ciclo cíclico) |
 | Tools         | LangGraph ToolNode + funções Python puras           |
 | Validação     | Pydantic v2 (guardrails de decisões)                |
@@ -31,25 +31,25 @@ Simulação de um **mundo fechado e autônomo** de cadeia de suprimentos, inspir
 
 ### Frontend (Game-like Dashboard)
 
-| Camada         | Tecnologia                                                      |
-| -------------- | --------------------------------------------------------------- |
-| Framework      | React 18+ / TypeScript                                          |
-| Mapa / WebGL   | MapLibre GL JS 4+ (renderização do mapa base)                   |
-| Visualização   | deck.gl 9+ sobreposto ao MapLibre                               |
-| Animação       | `TripsLayer` (caminhões em movimento), `ScatterplotLayer` (nós) |
-| Estado Global  | Zustand (WorldState sincronizado via WebSocket)                 |
-| Realtime       | WebSocket nativo (FastAPI backend)                              |
-| UI / HUD       | Tailwind CSS + shadcn/ui (painéis de inspeção)                  |
+| Camada        | Tecnologia                                                      |
+| ------------- | --------------------------------------------------------------- |
+| Framework     | React 18+ / TypeScript                                          |
+| Mapa / WebGL  | MapLibre GL JS 4+ (renderização do mapa base)                   |
+| Visualização  | deck.gl 9+ sobreposto ao MapLibre                               |
+| Animação      | `TripsLayer` (caminhões em movimento), `ScatterplotLayer` (nós) |
+| Estado Global | Zustand (WorldState sincronizado via WebSocket)                 |
+| Realtime      | WebSocket nativo (FastAPI backend)                              |
+| UI / HUD      | Tailwind CSS + shadcn/ui (painéis de inspeção)                  |
 
 ### Geo Infrastructure (Self-Hosted)
 
-| Componente        | Tecnologia                                                |
-| ----------------- | --------------------------------------------------------- |
-| Dados OSM         | Geofabrik — extract Sudeste Brasil (`.osm.pbf`, ~800 MB)  |
-| Geração de Tiles  | Planetiler → PMTiles (formato de tile vetorial compacto)  |
-| Servidor de Tiles | Martin (Rust) — serve PMTiles + PostGIS via HTTP          |
-| Roteamento        | Valhalla (Docker) — rotas reais por rodovias do OSM       |
-| Geo Database      | PostgreSQL + PostGIS — rotas, posições, entidades         |
+| Componente        | Tecnologia                                               |
+| ----------------- | -------------------------------------------------------- |
+| Dados OSM         | Geofabrik — extract Sudeste Brasil (`.osm.pbf`, ~800 MB) |
+| Geração de Tiles  | Planetiler → PMTiles (formato de tile vetorial compacto) |
+| Servidor de Tiles | Martin (Rust) — serve PMTiles + PostGIS via HTTP         |
+| Roteamento        | Valhalla (Docker) — rotas reais por rodovias do OSM      |
+| Geo Database      | PostgreSQL + PostGIS — rotas, posições, entidades        |
 
 ### Infrastructure
 
@@ -64,7 +64,7 @@ Simulação de um **mundo fechado e autônomo** de cadeia de suprimentos, inspir
 nexus-twin/
 ├── backend/
 │   ├── src/
-│   │   ├── world/                      # Gêmeo Digital — estado do mundo físico
+│   │   ├── world/                      # Nexus Twin — estado do mundo físico
 │   │   │   ├── __init__.py
 │   │   │   ├── state.py                # WorldState: snapshot imutável do mundo
 │   │   │   ├── entities/               # Modelos de domínio
@@ -245,7 +245,7 @@ nexus-twin/
 
 ## 4. Decisões Arquiteturais
 
-### 4.1 Gêmeo Digital (World State)
+### 4.1 Nexus Twin (World State)
 
 - **Snapshot imutável:** `WorldState` é reconstruído a cada tick — agentes nunca mutam o estado diretamente.
 - **Física determinística:** `physics.py` calcula distâncias, ETAs e degradação de caminhões com fórmulas fixas (sem IA). Não há simulação de combustível — o único trade-off dos caminhões é tempo vs. risco de rota.
@@ -303,11 +303,11 @@ Responsável por publicar nos canais Redis. É chamado em dois momentos distinto
 1. **Pelo engine** — ao fim de cada tick, após `apply_physics()`
 2. **Pelos agentes** — ao persistir uma decisão (resultado do fire-and-forget)
 
-| Canal Redis | Publicado por | Consumido por | Conteúdo |
-|---|---|---|---|
-| `nexus:world_state` | `engine.py` (a cada tick) | `api/websocket.py` | Snapshot completo do WorldState |
-| `nexus:agent_decisions` | agentes (fire-and-forget) | `api/websocket.py` | Decisão individual + agente + timestamp |
-| `nexus:events` | `engine.py` + `chaos.py` | `api/websocket.py` | Eventos de caos, alertas, triggers ativos |
+| Canal Redis             | Publicado por             | Consumido por      | Conteúdo                                  |
+| ----------------------- | ------------------------- | ------------------ | ----------------------------------------- |
+| `nexus:world_state`     | `engine.py` (a cada tick) | `api/websocket.py` | Snapshot completo do WorldState           |
+| `nexus:agent_decisions` | agentes (fire-and-forget) | `api/websocket.py` | Decisão individual + agente + timestamp   |
+| `nexus:events`          | `engine.py` + `chaos.py`  | `api/websocket.py` | Eventos de caos, alertas, triggers ativos |
 
 `api/websocket.py` é o subscriber — assina os três canais e faz o forward para os clientes WebSocket conectados ao dashboard.
 
@@ -536,6 +536,7 @@ Tick N  (10s real = 1h simulada)
   - Nunca avance para a próxima feature sem o usuário validar os testes da atual.
 - **Testes unitários:** agentes testáveis com `WorldState` mockado e `ChatOpenAI` substituído por `FakeListChatModel` do LangChain; repositories testados com `AsyncSession` mockada.
 - **Testes de integração:** features que tocam banco de dados (migrations, seed, repositories em cenários end-to-end) usam banco PostgreSQL efêmero via `testcontainers-python` (`PostgresContainer`) — sem variável de ambiente, sem banco preexistente. Instalar com `pip install -e ".[test]"`.
+- **Estrutura de pastas dos testes:** os testes espelham a estrutura de `backend/src/`. Exemplo: testes de `backend/src/world/` ficam em `backend/tests/unit/world/`, não soltos em `backend/tests/unit/`. Sempre criar `__init__.py` nos subdiretórios de teste.
 - **Performance:** Evitar N+1 queries — `WorldState` é carregado em uma query com joins.
 
 ---
@@ -567,13 +568,13 @@ pending → tdd_phase1 → in_progress → done
           tdd_rejected ──────┘  (após revisão dos testes)
 ```
 
-| Transição | Quando ocorre |
-|---|---|
-| `pending` → `tdd_phase1` | Testes escritos, aguardando aprovação do usuário |
+| Transição                     | Quando ocorre                                                            |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `pending` → `tdd_phase1`      | Testes escritos, aguardando aprovação do usuário                         |
 | `tdd_phase1` → `tdd_rejected` | Usuário rejeitou os testes (`revise ...`) — Notes registra o que revisar |
-| `tdd_rejected` → `tdd_phase1` | Testes revisados, aguardando aprovação novamente |
-| `tdd_phase1` → `in_progress` | Usuário aprovou os testes (`approved`) |
-| `pending` → `in_progress` | Feature sem TDD — implementação direta |
-| `in_progress` → `done` | Todos os critérios satisfeitos e testes passando |
+| `tdd_rejected` → `tdd_phase1` | Testes revisados, aguardando aprovação novamente                         |
+| `tdd_phase1` → `in_progress`  | Usuário aprovou os testes (`approved`)                                   |
+| `pending` → `in_progress`     | Feature sem TDD — implementação direta                                   |
+| `in_progress` → `done`        | Todos os critérios satisfeitos e testes passando                         |
 
 **Ao retomar uma sessão:** se o status for `tdd_phase1`, re-exibir o resumo dos testes escritos e aguardar aprovação. Se for `tdd_rejected`, re-exibir o que precisa revisar (Notes) e corrigir os testes antes de prosseguir.

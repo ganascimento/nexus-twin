@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Implementar a camada de domínio pura do Gêmeo Digital: os modelos Pydantic que representam o estado em memória de cada entidade do mundo (`Material`, `Factory`, `Warehouse`, `Store`, `Truck`) e o snapshot imutável `WorldState` que os agrega. Também cobre `physics.py` — as funções determinísticas de distância, ETA, degradação e avaliação de gatilhos preditivos.
+Implementar a camada de domínio pura do Nexus Twin: os modelos Pydantic que representam o estado em memória de cada entidade do mundo (`Material`, `Factory`, `Warehouse`, `Store`, `Truck`) e o snapshot imutável `WorldState` que os agrega. Também cobre `physics.py` — as funções determinísticas de distância, ETA, degradação e avaliação de gatilhos preditivos.
 
 Esta feature não acessa banco de dados. Ela define os tipos que todo o sistema usa: o engine de simulação (feature 07), os agentes (feature 08–09), os guardrails (feature 10) e o `WorldStateService` (feature 06) dependem diretamente dos modelos e funções definidos aqui.
 
