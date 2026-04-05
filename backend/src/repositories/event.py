@@ -42,6 +42,26 @@ class EventRepository:
         )
         return int(result.scalar())
 
+    async def count_active_autonomous(self) -> int:
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(ChaosEvent)
+            .where(ChaosEvent.source == "master_agent", ChaosEvent.status == "active")
+        )
+        return int(result.scalar())
+
+    async def get_active_for_entity(
+        self, entity_type: str, entity_id: str
+    ) -> list[ChaosEvent]:
+        result = await self._session.execute(
+            select(ChaosEvent).where(
+                ChaosEvent.entity_type == entity_type,
+                ChaosEvent.entity_id == entity_id,
+                ChaosEvent.status == "active",
+            )
+        )
+        return result.scalars().all()
+
     async def get_last_resolved_autonomous_tick(self) -> int | None:
         result = await self._session.execute(
             select(ChaosEvent.tick_end)
