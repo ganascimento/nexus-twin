@@ -17,7 +17,7 @@
 | 05  | world_state        | done       |                                                                   |
 | 06  | services_entities  | done        |                                                                   |
 | 07  | simulation_engine  | done        |                                                                   |
-| 08  | agent_base         | pending    |                                                                   |
+| 08  | agent_base         | done        |                                                                  |
 | 09  | agents             | pending    |                                                                   |
 | 10  | guardrails         | pending    |                                                                   |
 | 11  | agent_tools        | pending    |                                                                   |
