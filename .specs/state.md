@@ -19,7 +19,7 @@
 | 07  | simulation_engine  | done        |                                                                   |
 | 08  | agent_base         | done        |                                                                  |
 | 09  | agents             | done        |                                                                  |
-| 10  | guardrails         | pending    |                                                                   |
+| 10  | guardrails         | done        |                                                                   |
 | 11  | agent_tools        | pending    |                                                                   |
 | 12  | services_chaos     | pending    |                                                                   |
 | 13  | api_rest           | pending    |                                                                   |
