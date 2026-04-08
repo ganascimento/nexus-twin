@@ -20,7 +20,7 @@
 | 08  | agent_base         | done        |                                                                  |
 | 09  | agents             | done        |                                                                  |
 | 10  | guardrails         | done        |                                                                   |
-| 11  | agent_tools        | pending    |                                                                   |
+| 11  | agent_tools        | done        |                                                                   |
 | 12  | services_chaos     | pending    |                                                                   |
 | 13  | api_rest           | pending    |                                                                   |
 | 14  | api_websocket      | pending    |                                                                   |

@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.base import AgentState, WorldStateSlice, build_agent_graph
 from src.guardrails.factory import FactoryDecision
+from src.tools import FACTORY_TOOLS
 from src.repositories.event import EventRepository
 from src.repositories.factory import FactoryRepository
 from src.repositories.order import OrderRepository
@@ -57,7 +58,7 @@ class FactoryAgent:
         }
         graph = build_agent_graph(
             agent_type="factory",
-            tools=[],
+            tools=FACTORY_TOOLS,
             decision_schema_map={"factory": FactoryDecision},
             db_session=self._db_session,
             publisher_instance=self._publisher,

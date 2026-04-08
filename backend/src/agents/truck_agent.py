@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.base import WorldStateSlice, build_agent_graph
 from src.guardrails.truck import TruckDecision
+from src.tools import TRUCK_TOOLS
 from src.repositories.event import EventRepository
 from src.repositories.route import RouteRepository
 from src.repositories.truck import TruckRepository
@@ -62,7 +63,7 @@ class TruckAgent:
 
         graph = build_agent_graph(
             "truck",
-            tools=[],
+            tools=TRUCK_TOOLS,
             decision_schema_map={"truck": TruckDecision},
             db_session=self._db_session,
             publisher_instance=self._publisher,

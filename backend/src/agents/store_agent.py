@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.base import WorldStateSlice, build_agent_graph
 from src.guardrails.store import StoreDecision
+from src.tools import STORE_TOOLS
 from src.repositories.event import EventRepository
 from src.repositories.order import OrderRepository
 from src.repositories.store import StoreRepository
@@ -77,7 +78,7 @@ class StoreAgent:
 
         graph = build_agent_graph(
             "store",
-            tools=[],
+            tools=STORE_TOOLS,
             decision_schema_map={"store": StoreDecision},
             db_session=self._db_session,
             publisher_instance=self._publisher,
