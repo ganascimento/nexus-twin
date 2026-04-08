@@ -1,7 +1,7 @@
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import Factory, FactoryPartnerWarehouse, FactoryProduct
+from src.database.models import Factory, FactoryPartnerWarehouse, FactoryProduct, Warehouse
 
 
 class FactoryRepository:
@@ -116,3 +116,22 @@ class FactoryRepository:
             )
             .values(stock_reserved=FactoryProduct.stock_reserved - quantity)
         )
+
+    async def get_partner_warehouses(self, factory_id: str) -> list[Warehouse]:
+        stmt = (
+            select(Warehouse)
+            .join(FactoryPartnerWarehouse, FactoryPartnerWarehouse.warehouse_id == Warehouse.id)
+            .where(FactoryPartnerWarehouse.factory_id == factory_id)
+            .order_by(FactoryPartnerWarehouse.priority)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
+    async def list_partner_for_warehouse(self, warehouse_id: str) -> list[Factory]:
+        stmt = (
+            select(Factory)
+            .join(FactoryPartnerWarehouse, FactoryPartnerWarehouse.factory_id == Factory.id)
+            .where(FactoryPartnerWarehouse.warehouse_id == warehouse_id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalars().all()

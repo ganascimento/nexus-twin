@@ -18,7 +18,7 @@
 | 06  | services_entities  | done        |                                                                   |
 | 07  | simulation_engine  | done        |                                                                   |
 | 08  | agent_base         | done        |                                                                  |
-| 09  | agents             | pending    |                                                                   |
+| 09  | agents             | done        |                                                                  |
 | 10  | guardrails         | pending    |                                                                   |
 | 11  | agent_tools        | pending    |                                                                   |
 | 12  | services_chaos     | pending    |                                                                   |
@@ -53,3 +53,4 @@
 - [06_services_entities] Novos métodos adicionados aos repositórios: `FactoryRepository.get_product`, `FactoryRepository.release_reserved`, `WarehouseRepository.get_stock`, `WarehouseRepository.atomic_reserve_stock`, `WarehouseRepository.release_reserved`, `StoreRepository.get_stock` — necessários para serviços de negócio, ausentes na feature 04.
 - [07_simulation_engine] `EventRepository` estendido com `count_active_autonomous()` e `get_active_for_entity(entity_type, entity_id)` — necessários para avaliação de triggers e controle de caos autônomo.
 - [07_simulation_engine] `agent_fn` em triggers é sempre `None` nesta feature — agentes reais chegam nas features 08–09; engine aceita qualquer callable.
+- [09_agents] Métodos adicionados a repositórios existentes: `FactoryRepository.get_partner_warehouses(factory_id)`, `FactoryRepository.list_partner_for_warehouse(warehouse_id)`, `WarehouseRepository.list_by_region(region)`, `OrderRepository.get_pending_for_requester(requester_id)` — necessários para montagem do WorldStateSlice de cada agente.

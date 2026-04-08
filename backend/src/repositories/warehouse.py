@@ -107,3 +107,9 @@ class WarehouseRepository:
             )
             .values(stock_reserved=WarehouseStock.stock_reserved - quantity)
         )
+
+    async def list_by_region(self, region: str) -> list[Warehouse]:
+        result = await self._session.execute(
+            select(Warehouse).where(Warehouse.region == region)
+        )
+        return result.scalars().all()
