@@ -6,6 +6,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from src.api.routes.chaos import router as chaos_router
+from src.api.routes.decisions import router as decisions_router
+from src.api.routes.factories import router as factories_router
+from src.api.routes.materials import router as materials_router
+from src.api.routes.simulation import router as simulation_router
+from src.api.routes.stores import router as stores_router
+from src.api.routes.trucks import router as trucks_router
+from src.api.routes.warehouses import router as warehouses_router
+from src.api.routes.world import router as world_router
+
 
 class _InterceptHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
@@ -53,3 +63,16 @@ app.add_middleware(
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+API_V1_PREFIX = "/api/v1"
+
+app.include_router(simulation_router, prefix=API_V1_PREFIX)
+app.include_router(world_router, prefix=API_V1_PREFIX)
+app.include_router(materials_router, prefix=API_V1_PREFIX)
+app.include_router(factories_router, prefix=API_V1_PREFIX)
+app.include_router(warehouses_router, prefix=API_V1_PREFIX)
+app.include_router(stores_router, prefix=API_V1_PREFIX)
+app.include_router(trucks_router, prefix=API_V1_PREFIX)
+app.include_router(chaos_router, prefix=API_V1_PREFIX)
+app.include_router(decisions_router, prefix=API_V1_PREFIX)

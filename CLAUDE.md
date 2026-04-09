@@ -164,6 +164,18 @@ nexus-twin/
 │   │   │
 │   │   ├── api/                        # HTTP + WebSocket endpoints
 │   │   │   ├── __init__.py
+│   │   │   ├── dependencies.py         # Dependency factories (get_<service>) para FastAPI Depends
+│   │   │   ├── models/                 # Pydantic schemas de request/response — um arquivo por domínio
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── common.py           # StockAdjust (compartilhado entre factories, warehouses, stores)
+│   │   │   │   ├── simulation.py       # SpeedUpdate
+│   │   │   │   ├── materials.py        # MaterialCreate, MaterialUpdate, MaterialResponse
+│   │   │   │   ├── factories.py        # FactoryResponse
+│   │   │   │   ├── warehouses.py       # WarehouseResponse
+│   │   │   │   ├── stores.py           # StoreResponse
+│   │   │   │   ├── trucks.py           # TruckResponse
+│   │   │   │   ├── chaos.py            # ChaosEventCreate, ChaosEventResponse
+│   │   │   │   └── decisions.py        # DecisionResponse
 │   │   │   ├── routes/
 │   │   │   │   ├── simulation.py       # Controle da simulação (start/stop/tick, velocidade)
 │   │   │   │   ├── world.py            # Leitura do estado do mundo (snapshot, entidades)

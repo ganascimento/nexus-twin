@@ -78,7 +78,7 @@ Todos os endpoints vivem em `backend/src/api/routes/` e usam os services da cama
 ### Geral
 
 - [ ] Todos os endpoints registrados no app FastAPI via `APIRouter` com prefixo `/api/v1`
-- [ ] Schemas Pydantic de request/response definidos junto às rotas ou em módulo separado
+- [ ] Schemas Pydantic de request/response definidos em `api/models/` — um arquivo por domínio, separados das rotas
 - [ ] Erros de validação retornam `422` automaticamente (comportamento padrão do FastAPI)
 - [ ] Services injetados via `Depends(get_<service>)` — sem instanciação direta nos handlers
 
