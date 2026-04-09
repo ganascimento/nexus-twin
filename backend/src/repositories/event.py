@@ -17,6 +17,12 @@ class EventRepository:
         await self._session.refresh(event)
         return event
 
+    async def get_by_id(self, event_id: UUID) -> ChaosEvent | None:
+        result = await self._session.execute(
+            select(ChaosEvent).where(ChaosEvent.id == event_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_active(self) -> list[ChaosEvent]:
         result = await self._session.execute(
             select(ChaosEvent).where(ChaosEvent.status == "active")

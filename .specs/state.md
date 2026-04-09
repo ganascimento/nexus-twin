@@ -21,7 +21,7 @@
 | 09  | agents             | done        |                                                                  |
 | 10  | guardrails         | done        |                                                                   |
 | 11  | agent_tools        | done        |                                                                   |
-| 12  | services_chaos     | pending    |                                                                   |
+| 12  | services_chaos     | done        |                                                                  |
 | 13  | api_rest           | pending    |                                                                   |
 | 14  | api_websocket      | pending    |                                                                   |
 | 15  | celery_workers     | pending    |                                                                   |
@@ -54,3 +54,4 @@
 - [07_simulation_engine] `EventRepository` estendido com `count_active_autonomous()` e `get_active_for_entity(entity_type, entity_id)` — necessários para avaliação de triggers e controle de caos autônomo.
 - [07_simulation_engine] `agent_fn` em triggers é sempre `None` nesta feature — agentes reais chegam nas features 08–09; engine aceita qualquer callable.
 - [09_agents] Métodos adicionados a repositórios existentes: `FactoryRepository.get_partner_warehouses(factory_id)`, `FactoryRepository.list_partner_for_warehouse(warehouse_id)`, `WarehouseRepository.list_by_region(region)`, `OrderRepository.get_pending_for_requester(requester_id)` — necessários para montagem do WorldStateSlice de cada agente.
+- [12_services_chaos] `EventRepository.get_by_id(event_id)` adicionado — necessário para `ChaosService.resolve_event()` validar existência e status antes de resolver.
