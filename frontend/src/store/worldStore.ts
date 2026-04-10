@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  ActiveRoute,
   FactorySnapshot,
   WarehouseSnapshot,
   StoreSnapshot,
@@ -16,6 +17,7 @@ export interface WorldStoreState {
   warehouses: WarehouseSnapshot[];
   stores: StoreSnapshot[];
   trucks: TruckSnapshot[];
+  activeRoutes: ActiveRoute[];
   activeEvents: EventPayload[];
   recentDecisions: AgentDecisionPayload[];
   isConnected: boolean;
@@ -33,6 +35,7 @@ export const useWorldStore = create<WorldStoreState>((set) => ({
   warehouses: [],
   stores: [],
   trucks: [],
+  activeRoutes: [],
   activeEvents: [],
   recentDecisions: [],
   isConnected: false,
@@ -45,6 +48,7 @@ export const useWorldStore = create<WorldStoreState>((set) => ({
       warehouses: payload.warehouses,
       stores: payload.stores,
       trucks: payload.trucks,
+      activeRoutes: payload.active_routes ?? [],
       activeEvents: payload.active_events.map((e) => ({
         event_id: e.event_id,
         event_type: e.event_type,

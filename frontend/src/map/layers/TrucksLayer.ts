@@ -1,1 +1,109 @@
-export {};
+import { ScatterplotLayer } from "@deck.gl/layers";
+import { TripsLayer } from "@deck.gl/geo-layers";
+import type { Layer } from "@deck.gl/core";
+import type { TruckSnapshot, ActiveRoute } from "../../types/world";
+import { TRUCK_PROPRIETARIO_COLOR, TRUCK_TERCEIRO_COLOR } from "../mapConfig";
+
+interface TripDatum {
+  id: string;
+  entityType: "truck";
+  path: [number, number][];
+  timestamps: number[];
+  truckType: string;
+  degradation: number;
+}
+
+interface StaticTruckDatum {
+  id: string;
+  entityType: "truck";
+  position: [number, number];
+  truckType: string;
+  degradation: number;
+  status: string;
+}
+
+function getDegradationColor(degradation: number): [number, number, number] {
+  if (degradation < 0.3) return [76, 175, 80];
+  if (degradation < 0.6) return [255, 235, 59];
+  if (degradation < 0.8) return [255, 152, 0];
+  return [244, 67, 54];
+}
+
+export function createTrucksLayers(
+  trucks: TruckSnapshot[],
+  routes: ActiveRoute[],
+  currentTime: number,
+): Layer[] {
+  const routeMap = new Map(routes.map((r) => [r.id, r]));
+
+  const tripsData: TripDatum[] = [];
+  const staticData: StaticTruckDatum[] = [];
+
+  for (const truck of trucks) {
+    if (truck.active_route_id) {
+      const route = routeMap.get(truck.active_route_id);
+      if (route && route.path.length > 0) {
+        tripsData.push({
+          id: truck.id,
+          entityType: "truck",
+          path: route.path,
+          timestamps: route.timestamps,
+          truckType: truck.truck_type,
+          degradation: truck.degradation,
+        });
+        continue;
+      }
+    }
+
+    staticData.push({
+      id: truck.id,
+      entityType: "truck",
+      position: [truck.current_lng, truck.current_lat],
+      truckType: truck.truck_type,
+      degradation: truck.degradation,
+      status: truck.status,
+    });
+  }
+
+  const layers: Layer[] = [];
+
+  if (tripsData.length > 0) {
+    layers.push(
+      new TripsLayer<TripDatum>({
+        id: "trucks-trips-layer",
+        data: tripsData,
+        getPath: (d) => d.path,
+        getTimestamps: (d) => d.timestamps,
+        getColor: (d) => getDegradationColor(d.degradation),
+        currentTime,
+        trailLength: 600000,
+        widthMinPixels: 4,
+        pickable: true,
+        jointRounded: true,
+        capRounded: true,
+      }),
+    );
+  }
+
+  if (staticData.length > 0) {
+    layers.push(
+      new ScatterplotLayer<StaticTruckDatum>({
+        id: "trucks-static-layer",
+        data: staticData,
+        getPosition: (d) => d.position,
+        getRadius: 400,
+        getFillColor: (d) =>
+          d.truckType === "proprietario"
+            ? TRUCK_PROPRIETARIO_COLOR
+            : TRUCK_TERCEIRO_COLOR,
+        getLineColor: (d) => getDegradationColor(d.degradation),
+        lineWidthMinPixels: 2,
+        stroked: true,
+        radiusUnits: "meters",
+        pickable: true,
+      }),
+    );
+  }
+
+  return layers;
+}

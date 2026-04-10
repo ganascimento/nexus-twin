@@ -136,6 +136,7 @@ export interface WorldStatePayload {
   stores: StoreSnapshot[];
   trucks: TruckSnapshot[];
   active_events: ActiveEvent[];
+  active_routes?: ActiveRoute[];
 }
 
 export interface AgentDecisionPayload {

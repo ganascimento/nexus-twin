@@ -10,26 +10,27 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "react": "^18",
-    "react-dom": "^18",
-    "deck.gl": "^9",
     "@deck.gl/geo-layers": "^9",
     "@deck.gl/layers": "^9",
-    "maplibre-gl": "^4",
-    "zustand": "^4",
-    "tailwindcss": "^3",
-    "clsx": "^2",
+    "@radix-ui/react-slot": "^1",
     "class-variance-authority": "^0.7",
+    "clsx": "^2",
+    "deck.gl": "^9",
+    "maplibre-gl": "^4",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-map-gl": "^8.1.0",
     "tailwind-merge": "^2",
-    "@radix-ui/react-slot": "^1"
+    "tailwindcss": "^3",
+    "zustand": "^4"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "vite": "^5",
-    "@vitejs/plugin-react": "^4",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@vitejs/plugin-react": "^4",
     "autoprefixer": "^10",
-    "postcss": "^8"
+    "postcss": "^8",
+    "typescript": "^5",
+    "vite": "^5"
   }
 }

@@ -26,7 +26,7 @@
 | 14  | api_websocket      | done       |                                                                   |
 | 15  | celery_workers     | done       |                                                                   |
 | 16  | frontend_base      | done       |                                                                   |
-| 17  | frontend_map       | pending    |                                                                   |
+| 17  | frontend_map       | done       |                                                                   |
 | 18  | frontend_hud       | pending    |                                                                   |
 
 ---
@@ -56,3 +56,5 @@
 - [09_agents] Métodos adicionados a repositórios existentes: `FactoryRepository.get_partner_warehouses(factory_id)`, `FactoryRepository.list_partner_for_warehouse(warehouse_id)`, `WarehouseRepository.list_by_region(region)`, `OrderRepository.get_pending_for_requester(requester_id)` — necessários para montagem do WorldStateSlice de cada agente.
 - [12_services_chaos] `EventRepository.get_by_id(event_id)` adicionado — necessário para `ChaosService.resolve_event()` validar existência e status antes de resolver.
 - [16_frontend_base] `tsconfig.json` — removido `ignoreDeprecations: "6.0"` (inválido no TS 5.x), `baseUrl` e `paths` (alias `@/*` não utilizado). Adicionado `vite-env.d.ts` para tipagem de `import.meta.env`.
+- [17_frontend_map] `react-map-gl` v8 adicionado como dependência para integração MapLibre + deck.gl. `WorldStatePayload` estendido com `active_routes?: ActiveRoute[]` (opcional) e `worldStore` recebe `activeRoutes` — rotas chegam vazias até o backend incluir rotas no payload.
+- [17_frontend_map] `Map` de `react-map-gl/maplibre` renomeado para `MapGL` no import para evitar shadowing do global `Map` constructor.
