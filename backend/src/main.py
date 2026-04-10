@@ -1,7 +1,10 @@
+import asyncio
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 
+import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -15,6 +18,7 @@ from src.api.routes.stores import router as stores_router
 from src.api.routes.trucks import router as trucks_router
 from src.api.routes.warehouses import router as warehouses_router
 from src.api.routes.world import router as world_router
+from src.api.websocket import ConnectionManager, redis_subscriber, websocket_endpoint
 
 
 class _InterceptHandler(logging.Handler):
@@ -45,7 +49,19 @@ _configure_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Nexus Twin backend starting up")
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+    app.state.redis = aioredis.from_url(redis_url)
+    app.state.ws_manager = ConnectionManager()
+    app.state.redis_subscriber_task = asyncio.create_task(
+        redis_subscriber(app.state.redis, app.state.ws_manager)
+    )
     yield
+    app.state.redis_subscriber_task.cancel()
+    try:
+        await app.state.redis_subscriber_task
+    except asyncio.CancelledError:
+        pass
+    await app.state.redis.close()
     logger.info("Nexus Twin backend shutting down")
 
 
@@ -76,3 +92,5 @@ app.include_router(stores_router, prefix=API_V1_PREFIX)
 app.include_router(trucks_router, prefix=API_V1_PREFIX)
 app.include_router(chaos_router, prefix=API_V1_PREFIX)
 app.include_router(decisions_router, prefix=API_V1_PREFIX)
+
+app.add_api_websocket_route("/ws", websocket_endpoint)

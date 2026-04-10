@@ -23,7 +23,7 @@
 | 11  | agent_tools        | done        |                                                                   |
 | 12  | services_chaos     | done        |                                                                  |
 | 13  | api_rest           | done       |                                                                   |
-| 14  | api_websocket      | pending    |                                                                   |
+| 14  | api_websocket      | done       |                                                                   |
 | 15  | celery_workers     | pending    |                                                                   |
 | 16  | frontend_base      | pending    |                                                                   |
 | 17  | frontend_map       | pending    |                                                                   |
