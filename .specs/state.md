@@ -8,26 +8,26 @@
 
 ## Feature Progress
 
-| #   | Feature            | Status     | Notes                                                             |
-| --- | ------------------ | ---------- | ----------------------------------------------------------------- |
-| 01  | project_setup      | done       |                                                                   |
-| 02  | db_models          | done       | enums.py adicionado retroativamente — Python Enum + String column |
-| 03  | db_migrations_seed | done       |                                                                   |
-| 04  | repositories       | done       |                                                                   |
-| 05  | world_state        | done       |                                                                   |
-| 06  | services_entities  | done        |                                                                   |
-| 07  | simulation_engine  | done        |                                                                   |
-| 08  | agent_base         | done        |                                                                  |
-| 09  | agents             | done        |                                                                  |
-| 10  | guardrails         | done        |                                                                   |
-| 11  | agent_tools        | done        |                                                                   |
-| 12  | services_chaos     | done        |                                                                  |
-| 13  | api_rest           | done       |                                                                   |
-| 14  | api_websocket      | done       |                                                                   |
-| 15  | celery_workers     | done       |                                                                   |
-| 16  | frontend_base      | done       |                                                                   |
-| 17  | frontend_map       | done       |                                                                   |
-| 18  | frontend_hud       | pending    |                                                                   |
+| #   | Feature            | Status  | Notes                                                             |
+| --- | ------------------ | ------- | ----------------------------------------------------------------- |
+| 01  | project_setup      | done    |                                                                   |
+| 02  | db_models          | done    | enums.py adicionado retroativamente — Python Enum + String column |
+| 03  | db_migrations_seed | done    |                                                                   |
+| 04  | repositories       | done    |                                                                   |
+| 05  | world_state        | done    |                                                                   |
+| 06  | services_entities  | done    |                                                                   |
+| 07  | simulation_engine  | done    |                                                                   |
+| 08  | agent_base         | done    |                                                                   |
+| 09  | agents             | done    |                                                                   |
+| 10  | guardrails         | done    |                                                                   |
+| 11  | agent_tools        | done    |                                                                   |
+| 12  | services_chaos     | done    |                                                                   |
+| 13  | api_rest           | done    |                                                                   |
+| 14  | api_websocket      | done    |                                                                   |
+| 15  | celery_workers     | done    |                                                                   |
+| 16  | frontend_base      | done    |                                                                   |
+| 17  | frontend_map       | done    |                                                                   |
+| 18  | frontend_hud       | done    |                                                                   |
 
 ---
 
