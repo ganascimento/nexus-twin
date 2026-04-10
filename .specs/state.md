@@ -25,7 +25,7 @@
 | 13  | api_rest           | done       |                                                                   |
 | 14  | api_websocket      | done       |                                                                   |
 | 15  | celery_workers     | done       |                                                                   |
-| 16  | frontend_base      | pending    |                                                                   |
+| 16  | frontend_base      | done       |                                                                   |
 | 17  | frontend_map       | pending    |                                                                   |
 | 18  | frontend_hud       | pending    |                                                                   |
 
@@ -55,3 +55,4 @@
 - [07_simulation_engine] `agent_fn` em triggers é sempre `None` nesta feature — agentes reais chegam nas features 08–09; engine aceita qualquer callable.
 - [09_agents] Métodos adicionados a repositórios existentes: `FactoryRepository.get_partner_warehouses(factory_id)`, `FactoryRepository.list_partner_for_warehouse(warehouse_id)`, `WarehouseRepository.list_by_region(region)`, `OrderRepository.get_pending_for_requester(requester_id)` — necessários para montagem do WorldStateSlice de cada agente.
 - [12_services_chaos] `EventRepository.get_by_id(event_id)` adicionado — necessário para `ChaosService.resolve_event()` validar existência e status antes de resolver.
+- [16_frontend_base] `tsconfig.json` — removido `ignoreDeprecations: "6.0"` (inválido no TS 5.x), `baseUrl` e `paths` (alias `@/*` não utilizado). Adicionado `vite-env.d.ts` para tipagem de `import.meta.env`.

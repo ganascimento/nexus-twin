@@ -1,141 +1,165 @@
-export type MaterialId = string;
-
 export type TruckType = "proprietario" | "terceiro";
 
-export type TruckStatus =
-  | "idle"
-  | "in_transit"
-  | "loading"
-  | "unloading"
-  | "maintenance"
-  | "broken_down";
+export type TruckStatus = "idle" | "evaluating" | "in_transit" | "broken" | "maintenance";
 
-export type EntityStatus = "active" | "inactive" | "maintenance";
+export type FactoryStatus = "operating" | "stopped" | "reduced_capacity";
 
-export type ChaosEventType =
-  | "trucker_strike"
-  | "machine_breakdown"
-  | "demand_spike"
-  | "road_block"
-  | "regional_storm"
-  | "truck_breakdown"
-  | "demand_zero";
+export type WarehouseStatus = "operating" | "rationing" | "offline";
 
-export type RouteStatus = "clear" | "congested" | "blocked";
+export type StoreStatus = "open" | "demand_paused" | "offline";
 
-export type AgentActionType =
-  | "request_resupply"
-  | "confirm_order"
-  | "start_production"
-  | "send_stock"
-  | "order_replenishment"
-  | "accept_contract"
-  | "refuse_contract"
-  | "hold"
-  | "emergency_order";
+export type RouteStatus = "active" | "completed" | "interrupted";
 
-export interface Material {
-  id: MaterialId;
-  name: string;
-  is_active: boolean;
+export type RouteNodeType = "factory" | "warehouse" | "store";
+
+export type OrderStatus = "pending" | "confirmed" | "rejected" | "delivered" | "cancelled";
+
+export type OrderRequesterType = "store" | "warehouse";
+
+export type OrderTargetType = "warehouse" | "factory";
+
+export type ChaosEventSource = "user" | "master_agent" | "engine";
+
+export type ChaosEventEntityType = "factory" | "warehouse" | "store" | "truck";
+
+export type ChaosEventStatus = "active" | "resolved";
+
+export type AgentType = "factory" | "warehouse" | "store" | "truck" | "master";
+
+export type EntityType = "factory" | "warehouse" | "store" | "truck";
+
+export interface FactoryProductSnapshot {
+  material_id: string;
+  stock: number;
+  stock_reserved: number;
+  stock_max: number;
+  production_rate_max: number;
+  production_rate_current: number;
 }
 
-export interface GeoPoint {
+export interface FactorySnapshot {
+  id: string;
+  name: string;
   lat: number;
   lng: number;
+  status: FactoryStatus;
+  products: FactoryProductSnapshot[];
 }
 
-export interface Factory {
+export interface WarehouseStockSnapshot {
+  material_id: string;
+  stock: number;
+  stock_reserved: number;
+  min_stock: number;
+}
+
+export interface WarehouseSnapshot {
   id: string;
   name: string;
-  location: GeoPoint;
-  status: EntityStatus;
-  products: MaterialId[];
-  stock: Record<MaterialId, number>;
-  production_rate_max: Record<MaterialId, number>;
-  capacity_tons: number;
+  lat: number;
+  lng: number;
+  region: string;
+  capacity_total: number;
+  status: WarehouseStatus;
+  stocks: WarehouseStockSnapshot[];
 }
 
-export interface Warehouse {
+export interface StoreStockSnapshot {
+  material_id: string;
+  stock: number;
+  demand_rate: number;
+  reorder_point: number;
+}
+
+export interface StoreSnapshot {
   id: string;
   name: string;
-  location: GeoPoint;
-  status: EntityStatus;
-  stock: Record<MaterialId, number>;
-  min_stock: Record<MaterialId, number>;
-  capacity_tons: number;
+  lat: number;
+  lng: number;
+  status: StoreStatus;
+  stocks: StoreStockSnapshot[];
 }
 
-export interface Store {
+export interface TruckCargo {
+  product: string;
+  quantity: number;
+  origin: string;
+  destination: string;
+}
+
+export interface TruckSnapshot {
   id: string;
-  name: string;
-  location: GeoPoint;
-  status: EntityStatus;
-  stock: Record<MaterialId, number>;
-  demand_rate: Record<MaterialId, number>;
-  reorder_point: Record<MaterialId, number>;
-}
-
-export interface TruckRoute {
-  path: [number, number][];
-  timestamps: number[];
-  status: RouteStatus;
-}
-
-export interface Truck {
-  id: string;
-  name: string;
   truck_type: TruckType;
-  status: TruckStatus;
-  location: GeoPoint;
-  cargo: Record<MaterialId, number>;
   capacity_tons: number;
+  base_lat: number;
+  base_lng: number;
+  current_lat: number;
+  current_lng: number;
   degradation: number;
   breakdown_risk: number;
-  route: TruckRoute | null;
-  assigned_factory_id: string | null;
+  status: TruckStatus;
+  factory_id: string | null;
+  cargo: TruckCargo | null;
+  active_route_id: string | null;
 }
 
-export interface ChaosEvent {
+export interface ActiveRoute {
   id: string;
-  event_type: ChaosEventType;
+  truck_id: string;
+  origin_type: RouteNodeType;
+  origin_id: string;
+  dest_type: RouteNodeType;
+  dest_id: string;
+  path: [number, number][];
+  timestamps: number[];
+  eta_ticks: number;
+  status: RouteStatus;
+  started_at: string;
+}
+
+export interface ActiveEvent {
+  event_id: string;
+  event_type: string;
+  source: ChaosEventSource;
+  entity_type: ChaosEventEntityType | null;
+  entity_id: string | null;
+  status: ChaosEventStatus;
+  tick: number;
   description: string;
-  affected_entity_id: string | null;
-  started_at_tick: number;
-  resolved_at_tick: number | null;
-  is_resolved: boolean;
 }
 
-export interface AgentDecision {
-  id: string;
-  agent_type: string;
+export interface WorldStatePayload {
+  tick: number;
+  simulated_timestamp: string;
+  factories: FactorySnapshot[];
+  warehouses: WarehouseSnapshot[];
+  stores: StoreSnapshot[];
+  trucks: TruckSnapshot[];
+  active_events: ActiveEvent[];
+}
+
+export interface AgentDecisionPayload {
+  tick: number;
+  agent_type: AgentType;
   entity_id: string;
-  action: AgentActionType;
-  payload: Record<string, unknown>;
-  tick: number;
-  timestamp: string;
+  entity_name: string;
+  action: string;
+  summary: string;
+  reasoning?: string;
 }
 
-export interface PendingOrder {
-  id: string;
-  from_entity_id: string;
-  to_entity_id: string;
-  material_id: MaterialId;
-  quantity_tons: number;
-  status: "pending" | "confirmed" | "rejected" | "fulfilled";
-  created_at_tick: number;
-  age_ticks: number;
+export interface EventPayload {
+  event_id: string;
+  event_type: string;
+  source: ChaosEventSource;
+  entity_type?: ChaosEventEntityType;
+  entity_id?: string;
+  status: ChaosEventStatus;
+  tick: number;
+  description: string;
 }
 
-export interface WorldState {
-  tick: number;
-  simulated_time: string;
-  materials: Material[];
-  factories: Factory[];
-  warehouses: Warehouse[];
-  stores: Store[];
-  trucks: Truck[];
-  active_chaos_events: ChaosEvent[];
-  pending_orders: PendingOrder[];
-  recent_decisions: AgentDecision[];
+export interface WSMessage {
+  channel: "world_state" | "agent_decisions" | "events";
+  payload: WorldStatePayload | AgentDecisionPayload | EventPayload;
 }
