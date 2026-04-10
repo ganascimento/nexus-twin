@@ -24,7 +24,7 @@
 | 12  | services_chaos     | done        |                                                                  |
 | 13  | api_rest           | done       |                                                                   |
 | 14  | api_websocket      | done       |                                                                   |
-| 15  | celery_workers     | pending    |                                                                   |
+| 15  | celery_workers     | done       |                                                                   |
 | 16  | frontend_base      | pending    |                                                                   |
 | 17  | frontend_map       | pending    |                                                                   |
 | 18  | frontend_hud       | pending    |                                                                   |
