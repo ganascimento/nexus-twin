@@ -85,6 +85,40 @@ def extract_json_from_last_message(messages: list) -> dict:
     raise ValueError("No valid JSON found in last message")
 
 
+def _format_world_state_summary(world_state: WorldStateSlice) -> str:
+    entity = world_state.get("entity", {})
+    related = world_state.get("related_entities", [])
+    active_events = world_state.get("active_events", [])
+    pending_orders = world_state.get("pending_orders", [])
+
+    parts = [f"Entity: {json.dumps(entity, default=str)}"]
+    if related:
+        parts.append(f"Related entities: {json.dumps(related, default=str)}")
+    if active_events:
+        parts.append(f"Active events: {json.dumps(active_events, default=str)}")
+    if pending_orders:
+        parts.append(f"Pending orders: {json.dumps(pending_orders, default=str)}")
+    return "\n".join(parts)
+
+
+def _format_decision_history(history: list) -> str:
+    if not history:
+        return "No previous decisions."
+    entries = []
+    for h in history:
+        if isinstance(h, dict):
+            entries.append(json.dumps(h, default=str))
+        else:
+            entry = {
+                "tick": getattr(h, "tick", None),
+                "action": getattr(h, "action", None),
+                "event_type": getattr(h, "event_type", None),
+                "payload": getattr(h, "payload", {}),
+            }
+            entries.append(json.dumps(entry, default=str))
+    return "\n".join(entries)
+
+
 def _make_perceive_node(db_session):
     async def perceive_node(state: AgentState) -> dict:
         repo = AgentDecisionRepository(db_session)
@@ -96,6 +130,19 @@ def _make_perceive_node(db_session):
         prompt = prompt_path.read_text()
         prompt = prompt.replace("{entity_id}", state["entity_id"])
         prompt = prompt.replace("{trigger_event}", state["trigger_event"])
+        prompt = prompt.replace(
+            "{world_state_summary}",
+            _format_world_state_summary(state["world_state"]),
+        )
+        prompt = prompt.replace(
+            "{decision_history}", _format_decision_history(history)
+        )
+
+        entity = state["world_state"].get("entity", {})
+        if state["entity_type"] == "truck":
+            prompt = prompt.replace(
+                "{truck_type}", str(entity.get("truck_type", "unknown"))
+            )
 
         return {
             **state,
@@ -188,7 +235,8 @@ def _make_act_node_for_graph(decision_schema_map, db_session, publisher_instance
             await repo.create(
                 {
                     "entity_id": state["entity_id"],
-                    "entity_type": entity_type,
+                    "agent_type": entity_type,
+                    "event_type": state.get("trigger_event", "unknown"),
                     "tick": state["current_tick"],
                     "action": raw.get("action"),
                     "payload": raw.get("payload", {}),

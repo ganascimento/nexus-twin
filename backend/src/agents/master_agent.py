@@ -4,7 +4,6 @@ from typing import Callable, TypedDict
 
 from langgraph.graph import END, StateGraph
 
-from src.simulation.events import SimulationEvent
 
 AUTONOMOUS_CHAOS_TYPES = [
     "machine_breakdown",
@@ -53,20 +52,25 @@ def _make_dispatch_agents_node(semaphore: asyncio.Semaphore):
 
 
 async def evaluate_chaos_node(state: MasterAgentState) -> dict:
+    from src.database.session import AsyncSessionLocal
+    from src.repositories.event import EventRepository
     from src.services.chaos import ChaosService
 
     tick = state["current_tick"]
 
     try:
-        chaos_service = ChaosService.__new__(ChaosService)
-        can_inject = await chaos_service.can_inject_autonomous_event(tick)
-        if can_inject:
-            event_type = random.choice(AUTONOMOUS_CHAOS_TYPES)
-            result = await chaos_service.inject_autonomous_event(
-                {"event_type": event_type, "source": "autonomous"},
-                tick,
-            )
-            return {**state, "chaos_injected": result is not None}
+        async with AsyncSessionLocal() as session:
+            event_repo = EventRepository(session)
+            chaos_service = ChaosService(event_repo, session)
+            can_inject = await chaos_service.can_inject_autonomous_event(tick)
+            if can_inject:
+                event_type = random.choice(AUTONOMOUS_CHAOS_TYPES)
+                result = await chaos_service.inject_autonomous_event(
+                    {"event_type": event_type, "source": "autonomous"},
+                    tick,
+                )
+                await session.commit()
+                return {**state, "chaos_injected": result is not None}
     except Exception:
         pass
 

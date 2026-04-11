@@ -8,27 +8,28 @@
 
 ## Feature Progress
 
-| #   | Feature            | Status  | Notes                                                             |
-| --- | ------------------ | ------- | ----------------------------------------------------------------- |
-| 01  | project_setup      | done    |                                                                   |
-| 02  | db_models          | done    | enums.py adicionado retroativamente — Python Enum + String column |
-| 03  | db_migrations_seed | done    |                                                                   |
-| 04  | repositories       | done    |                                                                   |
-| 05  | world_state        | done    |                                                                   |
-| 06  | services_entities  | done    |                                                                   |
-| 07  | simulation_engine  | done    |                                                                   |
-| 08  | agent_base         | done    |                                                                   |
-| 09  | agents             | done    |                                                                   |
-| 10  | guardrails         | done    |                                                                   |
-| 11  | agent_tools        | done    |                                                                   |
-| 12  | services_chaos     | done    |                                                                   |
-| 13  | api_rest           | done    |                                                                   |
-| 14  | api_websocket      | done    |                                                                   |
-| 15  | celery_workers     | done    |                                                                   |
-| 16  | frontend_base      | done    |                                                                   |
-| 17  | frontend_map       | done    |                                                                   |
-| 18  | frontend_hud       | done    |                                                                   |
-| 19  | backend_review_fixes | in_progress | Code review fixes: agent state machine, services, API, engine, physics |
+| #   | Feature              | Status | Notes                                                                  |
+| --- | -------------------- | ------ | ---------------------------------------------------------------------- |
+| 01  | project_setup        | done   |                                                                        |
+| 02  | db_models            | done   | enums.py adicionado retroativamente — Python Enum + String column      |
+| 03  | db_migrations_seed   | done   |                                                                        |
+| 04  | repositories         | done   |                                                                        |
+| 05  | world_state          | done   |                                                                        |
+| 06  | services_entities    | done   |                                                                        |
+| 07  | simulation_engine    | done   |                                                                        |
+| 08  | agent_base           | done   |                                                                        |
+| 09  | agents               | done   |                                                                        |
+| 10  | guardrails           | done   |                                                                        |
+| 11  | agent_tools          | done   |                                                                        |
+| 12  | services_chaos       | done   |                                                                        |
+| 13  | api_rest             | done   |                                                                        |
+| 14  | api_websocket        | done   |                                                                        |
+| 15  | celery_workers       | done   |                                                                        |
+| 16  | frontend_base        | done   |                                                                        |
+| 17  | frontend_map         | done   |                                                                        |
+| 18  | frontend_hud         | done   |                                                                        |
+| 19  | backend_review_fixes | done   | Code review fixes: agent state machine, services, API, engine, physics |
+| 20  | critical_bug_fixes   | done   | 11 critical bugs fixed: WorldState crash, API endpoints, agent system, engine commit, route creation |
 
 ---
 
@@ -68,3 +69,12 @@
 - [19_backend_review_fixes] 5 services stub implementados: `WorldStateService`, `SimulationService`, `TriggerEvaluationService`, `RouteService`, `PhysicsService`.
 - [19_backend_review_fixes] 6 dependency factories implementadas em `api/dependencies.py` — todas as rotas API agora funcionais.
 - [19_backend_review_fixes] CORS corrigido: `allow_origins=["*"]` com `allow_credentials=True` substituído por origins configuráveis via env `CORS_ORIGINS`.
+- [20_critical_bug_fixes] `world_state.py` — removido `t.name` (Truck DB sem coluna `name`), adicionado `base_lat`/`base_lng` (campos obrigatórios no TruckEntity), removido `s.region` (Store DB sem coluna `region`).
+- [20_critical_bug_fixes] `api/routes/world.py` — `service.get_snapshot()` corrigido para `service.load()` (método real do WorldStateService).
+- [20_critical_bug_fixes] `main.py` lifespan — `SimulationEngine` + `SimulationService` inicializados com `WorldStateService`, Redis client e `AsyncSessionLocal`. Graceful shutdown adicionado.
+- [20_critical_bug_fixes] `api/routes/simulation.py` + `world.py` — removido `await` de `get_status()` e `set_tick_interval()` (métodos sync que retornam dict).
+- [20_critical_bug_fixes] `master_agent.py` — `ChaosService.__new__()` substituído por instanciação correta com `EventRepository` + `AsyncSession` via `AsyncSessionLocal`.
+- [20_critical_bug_fixes] `agents/base.py` — placeholders `{world_state_summary}`, `{decision_history}`, `{truck_type}` agora substituídos com dados reais. Funções `_format_world_state_summary()` e `_format_decision_history()` adicionadas.
+- [20_critical_bug_fixes] `agents/base.py` `_act_node` — `entity_type` corrigido para `agent_type` (nome real da coluna em `AgentDecision`), `event_type` adicionado (coluna NOT NULL que faltava).
+- [20_critical_bug_fixes] `simulation/engine.py` `_apply_physics` — `await session.commit()` adicionado ao final; sem ele, todas as escritas de physics eram descartadas por rollback implícito.
+- [20_critical_bug_fixes] `services/route.py` `create_route` — assinatura e dict corrigidos para `origin_type`+`origin_id`+`dest_type`+`dest_id`+`started_at`; removido `distance_km` (coluna inexistente) e `destination_id` (campo errado).

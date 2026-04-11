@@ -30,13 +30,13 @@ async def advance_tick(service=Depends(get_simulation_service)):
 
 @router.get("/status")
 async def get_status(service=Depends(get_simulation_service)):
-    return await service.get_status()
+    return service.get_status()
 
 
 @router.patch("/speed")
 async def set_speed(body: SpeedUpdate, service=Depends(get_simulation_service)):
     try:
-        await service.set_tick_interval(body.tick_interval_seconds)
+        service.set_tick_interval(body.tick_interval_seconds)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"status": "updated"}

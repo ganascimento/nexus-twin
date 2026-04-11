@@ -63,7 +63,7 @@ async def test_run_cycle_completes_full_path(mock_db_session, mock_publisher):
 
     mock_repo.create.assert_called_once()
     call_data = mock_repo.create.call_args[0][0]
-    assert call_data["entity_type"] == "truck"
+    assert call_data["agent_type"] == "truck"
     assert call_data["entity_id"] == "truck-001"
 
 

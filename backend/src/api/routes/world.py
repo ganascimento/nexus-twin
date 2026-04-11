@@ -7,13 +7,12 @@ router = APIRouter(prefix="/world", tags=["world"])
 
 @router.get("/snapshot")
 async def get_snapshot(service=Depends(get_world_state_service)):
-    return await service.get_snapshot()
+    return await service.load()
 
 
 @router.get("/tick")
 async def get_tick(service=Depends(get_simulation_service)):
-    status = await service.get_status()
+    status = service.get_status()
     return {
         "current_tick": status["current_tick"],
-        "simulated_timestamp": status["simulated_timestamp"],
     }

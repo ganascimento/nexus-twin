@@ -40,17 +40,27 @@ class RouteService:
         }
 
     async def create_route(
-        self, truck_id: str, origin_id: str, destination_id: str, route_data: dict
+        self,
+        truck_id: str,
+        origin_type: str,
+        origin_id: str,
+        dest_type: str,
+        dest_id: str,
+        route_data: dict,
     ):
+        from datetime import datetime, timezone
+
         return await self._repo.create({
             "truck_id": truck_id,
+            "origin_type": origin_type,
             "origin_id": origin_id,
-            "destination_id": destination_id,
+            "dest_type": dest_type,
+            "dest_id": dest_id,
             "path": route_data["path"],
             "timestamps": route_data["timestamps"],
-            "distance_km": route_data["distance_km"],
             "eta_ticks": route_data["eta_ticks"],
             "status": "active",
+            "started_at": datetime.now(timezone.utc),
         })
 
     async def _call_valhalla(

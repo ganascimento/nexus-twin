@@ -60,7 +60,21 @@ async def lifespan(app: FastAPI):
     app.state.redis_subscriber_task = asyncio.create_task(
         redis_subscriber(app.state.redis, app.state.ws_manager)
     )
+
+    from src.database.session import _get_engine, AsyncSessionLocal
+    from src.services.simulation import SimulationService
+    from src.services.world_state import WorldStateService
+    from src.simulation.engine import SimulationEngine
+
+    _get_engine()
+
+    world_state_service = WorldStateService(AsyncSessionLocal())
+    engine = SimulationEngine(world_state_service, app.state.redis, AsyncSessionLocal)
+    app.state.simulation_service = SimulationService(engine)
+
     yield
+    if app.state.simulation_service.is_running:
+        await app.state.simulation_service.stop()
     app.state.redis_subscriber_task.cancel()
     try:
         await app.state.redis_subscriber_task

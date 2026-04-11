@@ -15,8 +15,8 @@ def mock_simulation_service():
     service.start = AsyncMock()
     service.stop = AsyncMock()
     service.advance_tick = AsyncMock()
-    service.set_tick_interval = AsyncMock()
-    service.get_status = AsyncMock()
+    service.set_tick_interval = MagicMock()
+    service.get_status = MagicMock()
     return service
 
 
@@ -92,7 +92,7 @@ async def test_get_status(client, mock_simulation_service):
     assert data["current_tick"] == 42
     assert data["tick_interval"] == 10
     assert data["simulated_timestamp"] == "2025-01-02T18:00:00"
-    mock_simulation_service.get_status.assert_awaited_once()
+    mock_simulation_service.get_status.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -102,7 +102,7 @@ async def test_set_speed_valid(client, mock_simulation_service):
     )
 
     assert response.status_code == 200
-    mock_simulation_service.set_tick_interval.assert_awaited_once_with(15)
+    mock_simulation_service.set_tick_interval.assert_called_once_with(15)
 
 
 @pytest.mark.asyncio
@@ -125,4 +125,4 @@ async def test_set_speed_at_minimum_boundary(client, mock_simulation_service):
     )
 
     assert response.status_code == 200
-    mock_simulation_service.set_tick_interval.assert_awaited_once_with(10)
+    mock_simulation_service.set_tick_interval.assert_called_once_with(10)

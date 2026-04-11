@@ -156,7 +156,6 @@ class WorldStateService:
                     name=s.name,
                     lat=s.lat,
                     lng=s.lng,
-                    region=s.region,
                     status=s.status,
                     stocks=stocks,
                 )
@@ -169,10 +168,11 @@ class WorldStateService:
         return [
             TruckEntity(
                 id=t.id,
-                name=t.name,
                 truck_type=t.truck_type,
                 factory_id=t.factory_id,
                 capacity_tons=t.capacity_tons,
+                base_lat=t.base_lat,
+                base_lng=t.base_lng,
                 current_lat=t.current_lat,
                 current_lng=t.current_lng,
                 status=t.status,

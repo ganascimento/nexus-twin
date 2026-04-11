@@ -155,6 +155,8 @@ class SimulationEngine:
 
             await order_repo.increment_all_age_ticks()
 
+            await session.commit()
+
     def _interpolate_position(
         self, path: list, timestamps: list, current_tick: int
     ) -> tuple[float, float]:
