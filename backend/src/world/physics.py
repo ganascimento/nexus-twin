@@ -18,7 +18,7 @@ def calculate_eta_ticks(distance_km: float, avg_speed_kmh: float = 60.0) -> int:
 
 
 def calculate_degradation_delta(distance_km: float, cargo_tons: float, capacity_tons: float) -> float:
-    if distance_km == 0 or capacity_tons == 0:
+    if distance_km == 0 or capacity_tons == 0 or cargo_tons == 0:
         return 0.0
     return (distance_km / 1000) * (0.01 + 0.04 * (cargo_tons / capacity_tons))
 

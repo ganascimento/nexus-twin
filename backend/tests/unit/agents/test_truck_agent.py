@@ -57,10 +57,9 @@ async def test_run_cycle_completes_full_path(mock_db_session, mock_publisher):
     with patch.object(agent, "_build_world_state_slice", AsyncMock(return_value=world_slice)):
         with patch("src.agents.base.ChatOpenAI", return_value=fake_chat):
             with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
-                with patch("src.agents.base.AsyncSession", MagicMock()):
-                    with patch("pathlib.Path.read_text", return_value="You are {entity_id}"):
-                        with patch("src.agents.truck_agent.TruckDecision", stub_schema):
-                            await agent.run_cycle(trigger)
+                with patch("pathlib.Path.read_text", return_value="You are {entity_id}"):
+                    with patch("src.agents.truck_agent.TruckDecision", stub_schema):
+                        await agent.run_cycle(trigger)
 
     mock_repo.create.assert_called_once()
     call_data = mock_repo.create.call_args[0][0]
@@ -167,14 +166,14 @@ async def test_fast_path_maintenance_when_degradation_critical(mock_db_session, 
     with patch.object(agent, "_build_world_state_slice", AsyncMock(return_value=world_slice)):
         with patch("src.agents.base.ChatOpenAI", return_value=fake_chat):
             with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
-                with patch("src.agents.base.AsyncSession", MagicMock()):
-                    with patch("pathlib.Path.read_text", return_value="You are {entity_id}"):
-                        with patch("src.agents.truck_agent.TruckDecision", stub_schema):
-                            final_state = await agent.run_cycle(trigger)
+                with patch("pathlib.Path.read_text", return_value="You are {entity_id}"):
+                    with patch("src.agents.truck_agent.TruckDecision", stub_schema):
+                        final_state = await agent.run_cycle(trigger)
 
-    # Fast path fires: LLM is not called, graph ends at fast_path node
-    # The function should complete without errors (FakeListChatModel not consumed)
-    mock_repo.create.assert_not_called()
+    # Fast path fires: LLM is not called, decision goes through act_node
+    mock_repo.create.assert_called_once()
+    call_data = mock_repo.create.call_args[0][0]
+    assert call_data["action"] == "request_maintenance"
 
 
 # ---------------------------------------------------------------------------
@@ -207,10 +206,9 @@ async def test_proprietario_does_not_block_on_fast_path(mock_db_session, mock_pu
     with patch.object(agent, "_build_world_state_slice", AsyncMock(return_value=world_slice)):
         with patch("src.agents.base.ChatOpenAI", return_value=fake_chat):
             with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
-                with patch("src.agents.base.AsyncSession", MagicMock()):
-                    with patch("pathlib.Path.read_text", return_value="You are {entity_id}"):
-                        with patch("src.agents.truck_agent.TruckDecision", stub_schema):
-                            await agent.run_cycle(trigger)
+                with patch("pathlib.Path.read_text", return_value="You are {entity_id}"):
+                    with patch("src.agents.truck_agent.TruckDecision", stub_schema):
+                        await agent.run_cycle(trigger)
 
     # LLM was reached: decision was persisted
     mock_repo.create.assert_called_once()

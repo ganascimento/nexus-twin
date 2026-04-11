@@ -1,13 +1,13 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChaosEventCreate(BaseModel):
-    event_type: str
-    entity_type: str
-    entity_id: str
-    payload: dict = {}
+    event_type: str = Field(min_length=1)
+    entity_type: str = Field(min_length=1)
+    entity_id: str = Field(min_length=1)
+    payload: dict = Field(default_factory=dict)
 
 
 class ChaosEventResponse(BaseModel):

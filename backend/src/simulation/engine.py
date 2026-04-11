@@ -1,15 +1,20 @@
 import asyncio
 import os
 
+from loguru import logger
+
 from src.enums import TruckStatus
 from src.repositories.event import EventRepository
 from src.repositories.factory import FactoryRepository
 from src.repositories.order import OrderRepository
+from src.repositories.route import RouteRepository
 from src.repositories.store import StoreRepository
 from src.repositories.truck import TruckRepository
 from src.simulation.events import (
     ENGINE_BLOCKED_DEGRADED_TRUCK,
     LOW_STOCK_TRIGGER,
+    STOCK_TRIGGER_FACTORY,
+    STOCK_TRIGGER_WAREHOUSE,
     route_event,
     trigger_event,
 )
@@ -68,6 +73,7 @@ class SimulationEngine:
             store_repo = StoreRepository(session)
             factory_repo = FactoryRepository(session)
             order_repo = OrderRepository(session)
+            route_repo = RouteRepository(session)
 
             for truck in world_state.trucks:
                 if truck.status != TruckStatus.IN_TRANSIT:
@@ -83,12 +89,22 @@ class SimulationEngine:
                     )
                     continue
 
-                route = truck.active_route
+                route = await route_repo.get_active_by_truck(truck.id)
+                if route is None:
+                    logger.warning("Truck {} is IN_TRANSIT but has no active route", truck.id)
+                    continue
 
-                if route.eta_ticks == 0:
+                new_eta = max(0, route.eta_ticks - 1)
+                await route_repo.update_eta_ticks(route.id, new_eta)
+
+                if new_eta == 0:
+                    if route.path and route.timestamps:
+                        final_lng, final_lat = route.path[-1]
+                        await truck_repo.update_position(truck.id, final_lat, final_lng)
                     await truck_repo.update_status(truck.id, "idle")
                     await truck_repo.set_cargo(truck.id, None)
                     await truck_repo.set_active_route(truck.id, None)
+                    await route_repo.update_status(route.id, "completed")
                 else:
                     path = route.path
                     timestamps = route.timestamps
@@ -102,7 +118,12 @@ class SimulationEngine:
                     distance_km = calculate_distance_km(
                         truck.current_lat, truck.current_lng, new_lat, new_lng
                     )
-                    cargo_tons = truck.cargo.quantity_tons if truck.cargo else 0.0
+                    if truck.cargo is None:
+                        cargo_tons = 0.0
+                    elif isinstance(truck.cargo, dict):
+                        cargo_tons = truck.cargo.get("quantity_tons", 0.0)
+                    else:
+                        cargo_tons = getattr(truck.cargo, "quantity_tons", 0.0)
                     delta = calculate_degradation_delta(
                         distance_km, cargo_tons, truck.capacity_tons
                     )
@@ -195,6 +216,37 @@ class SimulationEngine:
                             )
                         )
                         triggered = True
+
+            for warehouse in world_state.warehouses:
+                triggered = False
+                for material_id, stock_entry in warehouse.stocks.items():
+                    available = stock_entry.stock - stock_entry.stock_reserved
+                    if stock_entry.min_stock > 0 and available <= stock_entry.min_stock * 1.2:
+                        if not triggered:
+                            triggers.append(
+                                (
+                                    None,
+                                    trigger_event(
+                                        "warehouse", warehouse.id, STOCK_TRIGGER_WAREHOUSE, self._tick
+                                    ),
+                                )
+                            )
+                            triggered = True
+
+            for factory in world_state.factories:
+                triggered = False
+                for material_id, product in factory.products.items():
+                    if product.stock_max > 0 and product.stock / product.stock_max < 0.3 and product.production_rate_current == 0:
+                        if not triggered:
+                            triggers.append(
+                                (
+                                    None,
+                                    trigger_event(
+                                        "factory", factory.id, STOCK_TRIGGER_FACTORY, self._tick
+                                    ),
+                                )
+                            )
+                            triggered = True
 
             for truck in world_state.trucks:
                 active_events = await event_repo.get_active_for_entity(

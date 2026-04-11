@@ -1,11 +1,15 @@
-from pydantic import BaseModel, ConfigDict
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TruckCreate(BaseModel):
-    name: str
-    truck_type: str
-    lat: float
-    lng: float
+    name: str = Field(min_length=1, max_length=200)
+    truck_type: Literal["proprietario", "terceiro"]
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    factory_id: str | None = None
+    capacity_tons: float = Field(gt=0)
 
 
 class TruckResponse(BaseModel):

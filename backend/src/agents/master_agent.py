@@ -1,10 +1,16 @@
 import asyncio
-import os
+import random
 from typing import Callable, TypedDict
 
-from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
+
+from src.simulation.events import SimulationEvent
+
+AUTONOMOUS_CHAOS_TYPES = [
+    "machine_breakdown",
+    "demand_spike",
+    "truck_breakdown",
+]
 
 
 class _MasterAgentStateRequired(TypedDict):
@@ -35,7 +41,7 @@ def _make_dispatch_agents_node(semaphore: asyncio.Semaphore):
 
         for trigger in state["triggers"]:
             if agent_factory:
-                agent = agent_factory(trigger.entity_type)
+                agent = agent_factory(trigger.entity_type, trigger.entity_id)
                 coro = agent.run_cycle(trigger)
             else:
                 continue
@@ -46,44 +52,34 @@ def _make_dispatch_agents_node(semaphore: asyncio.Semaphore):
     return dispatch_agents_node
 
 
-def _make_evaluate_chaos_node(llm):
-    async def evaluate_chaos_node(state: MasterAgentState) -> dict:
-        from src.services.chaos import ChaosService
+async def evaluate_chaos_node(state: MasterAgentState) -> dict:
+    from src.services.chaos import ChaosService
 
-        tick = state["current_tick"]
-        prompt = (
-            f"Tick {tick}. WorldState summary: {str(state['world_state'])[:500]}. "
-            "Should an autonomous chaos event be injected? Reply only 'yes' or 'no'."
-        )
+    tick = state["current_tick"]
 
-        try:
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
-            if "yes" in response.content.lower():
-                result = await ChaosService().inject_autonomous_event(
-                    {
-                        "tick": tick,
-                        "source": "autonomous",
-                    }
-                )
-                return {**state, "chaos_injected": result is not None}
-        except Exception:
-            pass
+    try:
+        chaos_service = ChaosService.__new__(ChaosService)
+        can_inject = await chaos_service.can_inject_autonomous_event(tick)
+        if can_inject:
+            event_type = random.choice(AUTONOMOUS_CHAOS_TYPES)
+            result = await chaos_service.inject_autonomous_event(
+                {"event_type": event_type, "source": "autonomous"},
+                tick,
+            )
+            return {**state, "chaos_injected": result is not None}
+    except Exception:
+        pass
 
-        return {**state, "chaos_injected": False}
-
-    return evaluate_chaos_node
+    return {**state, "chaos_injected": False}
 
 
 def _build_master_graph(semaphore: asyncio.Semaphore):
-    llm = ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
-
     dispatch_node = _make_dispatch_agents_node(semaphore)
-    chaos_node = _make_evaluate_chaos_node(llm)
 
     graph = StateGraph(MasterAgentState)
     graph.add_node("evaluate_world", evaluate_world_node)
     graph.add_node("dispatch_agents", dispatch_node)
-    graph.add_node("evaluate_chaos", chaos_node)
+    graph.add_node("evaluate_chaos", evaluate_chaos_node)
 
     graph.set_entry_point("evaluate_world")
     graph.add_edge("evaluate_world", "dispatch_agents")
@@ -91,24 +87,6 @@ def _build_master_graph(semaphore: asyncio.Semaphore):
     graph.add_edge("evaluate_chaos", END)
 
     return graph.compile()
-
-
-async def run_master_cycle(state: MasterAgentState) -> dict:
-    agent_factory = state.get("agent_factory")
-
-    for trigger in state["triggers"]:
-        if agent_factory:
-            agent = agent_factory(trigger.entity_type)
-            coro = agent.run_cycle(trigger)
-        else:
-
-            async def _noop():
-                pass
-
-            coro = _noop()
-        asyncio.create_task(coro)
-
-    return state
 
 
 async def run_master_cycle_full(

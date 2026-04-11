@@ -13,7 +13,7 @@ class FactoryService:
     async def get_factory(self, id: str):
         factory = await self._repo.get_by_id(id)
         if factory is None:
-            raise NotFoundError(id)
+            raise NotFoundError(f"Factory '{id}' not found")
         return factory
 
     async def create_factory(self, data: dict):
@@ -22,7 +22,7 @@ class FactoryService:
     async def update_factory(self, id: str, data: dict):
         factory = await self._repo.get_by_id(id)
         if factory is None:
-            raise NotFoundError(id)
+            raise NotFoundError(f"Factory '{id}' not found")
         return await self._repo.update(id, data)
 
     async def delete_factory(self, id: str) -> None:
@@ -35,7 +35,7 @@ class FactoryService:
     async def adjust_stock(self, id: str, material_id: str, delta: float) -> None:
         product = await self._repo.get_product(id, material_id)
         if product is None:
-            raise NotFoundError(material_id)
+            raise NotFoundError(f"Product not found for factory '{id}' and material '{material_id}'")
         new_stock = product.stock + delta
         if new_stock < 0:
             raise ValueError(f"stock cannot be negative: {new_stock}")

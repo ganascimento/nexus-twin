@@ -85,8 +85,8 @@ async def websocket_endpoint(ws: WebSocket) -> None:
                 await ws.send_json({"type": "pong"})
             elif msg_type == "subscribe" and isinstance(data.get("channels"), list):
                 manager.set_channels(ws, data["channels"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("WebSocket connection closed: {}", exc)
     finally:
         manager.disconnect(ws)
         logger.info("WebSocket client disconnected")

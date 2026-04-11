@@ -1,4 +1,4 @@
-from src.services import NotFoundError
+from src.services import ConflictError, NotFoundError
 
 
 class WarehouseService:
@@ -13,7 +13,7 @@ class WarehouseService:
     async def get_warehouse(self, id: str):
         warehouse = await self._repo.get_by_id(id)
         if warehouse is None:
-            raise NotFoundError(id)
+            raise NotFoundError(f"Warehouse '{id}' not found")
         return warehouse
 
     async def create_warehouse(self, data: dict):
@@ -22,7 +22,7 @@ class WarehouseService:
     async def update_warehouse(self, id: str, data: dict):
         warehouse = await self._repo.get_by_id(id)
         if warehouse is None:
-            raise NotFoundError(id)
+            raise NotFoundError(f"Warehouse '{id}' not found")
         return await self._repo.update(id, data)
 
     async def delete_warehouse(self, id: str) -> None:
@@ -35,26 +35,45 @@ class WarehouseService:
     async def confirm_order(self, order_id, eta_ticks: int):
         order = await self._order_repo.get_by_id(order_id)
         if order is None:
-            raise NotFoundError(order_id)
+            raise NotFoundError(f"Order '{order_id}' not found")
         success = await self._repo.atomic_reserve_stock(
             order.target_id, order.material_id, order.quantity_tons
         )
         if not success:
-            return None
+            raise ConflictError(
+                f"Insufficient stock to reserve {order.quantity_tons} tons "
+                f"of material '{order.material_id}' in warehouse '{order.target_id}'"
+            )
         return await self._order_repo.update_status(
             order_id, status="confirmed", eta_ticks=eta_ticks
         )
 
     async def reject_order(self, order_id, reason: str):
+        order = await self._order_repo.get_by_id(order_id)
+        if order is None:
+            raise NotFoundError(f"Order '{order_id}' not found")
+        if order.status == "confirmed":
+            await self._repo.release_reserved(
+                order.target_id, order.material_id, order.quantity_tons
+            )
         return await self._order_repo.update_status(
             order_id, status="rejected", rejection_reason=reason
         )
 
     async def adjust_stock(self, id: str, material_id: str, delta: float) -> None:
+        warehouse = await self._repo.get_by_id(id)
+        if warehouse is None:
+            raise NotFoundError(f"Warehouse '{id}' not found")
         stock_entry = await self._repo.get_stock(id, material_id)
         if stock_entry is None:
-            raise NotFoundError(material_id)
+            raise NotFoundError(f"Stock entry not found for warehouse '{id}' and material '{material_id}'")
         new_stock = stock_entry.stock + delta
         if new_stock < 0:
             raise ValueError(f"stock cannot be negative: {new_stock}")
+        total_stock = sum(
+            s.stock for s in (await self._repo.get_all_stocks(id))
+            if s.material_id != material_id
+        ) + new_stock
+        if total_stock > warehouse.capacity_total:
+            raise ValueError(f"total stock {total_stock} exceeds warehouse capacity {warehouse.capacity_total}")
         await self._repo.update_stock(id, material_id, delta)

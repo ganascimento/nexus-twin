@@ -28,6 +28,7 @@
 | 16  | frontend_base      | done    |                                                                   |
 | 17  | frontend_map       | done    |                                                                   |
 | 18  | frontend_hud       | done    |                                                                   |
+| 19  | backend_review_fixes | in_progress | Code review fixes: agent state machine, services, API, engine, physics |
 
 ---
 
@@ -58,3 +59,12 @@
 - [16_frontend_base] `tsconfig.json` — removido `ignoreDeprecations: "6.0"` (inválido no TS 5.x), `baseUrl` e `paths` (alias `@/*` não utilizado). Adicionado `vite-env.d.ts` para tipagem de `import.meta.env`.
 - [17_frontend_map] `react-map-gl` v8 adicionado como dependência para integração MapLibre + deck.gl. `WorldStatePayload` estendido com `active_routes?: ActiveRoute[]` (opcional) e `worldStore` recebe `activeRoutes` — rotas chegam vazias até o backend incluir rotas no payload.
 - [17_frontend_map] `Map` de `react-map-gl/maplibre` renomeado para `MapGL` no import para evitar shadowing do global `Map` constructor.
+- [19_backend_review_fixes] `perceive_node` convertido de função standalone para factory `_make_perceive_node(db_session)` — corrige crash por `AsyncSession()` sem bind.
+- [19_backend_review_fixes] `fast_path` agora redireciona para `act` em vez de `END` — decisões fast-path são validadas por guardrails e persistidas no banco.
+- [19_backend_review_fixes] Ação `emergency_order` substituída por mapa `_EMERGENCY_ACTION_MAP` por entity_type — `store→order_replenishment`, `warehouse→request_resupply`, `factory→start_production`.
+- [19_backend_review_fixes] `master_agent.run_master_cycle` (dead code) removido; `evaluate_chaos` substituído de LLM call por lógica determinística via `ChaosService.can_inject_autonomous_event()`.
+- [19_backend_review_fixes] Engine agora busca rota via `RouteRepository.get_active_by_truck()` em vez de acessar `truck.active_route` — resolve N+1 e lazy loading issues.
+- [19_backend_review_fixes] `route.eta_ticks` agora é decrementado a cada tick no engine — corrige bug onde caminhões nunca chegavam ao destino.
+- [19_backend_review_fixes] 5 services stub implementados: `WorldStateService`, `SimulationService`, `TriggerEvaluationService`, `RouteService`, `PhysicsService`.
+- [19_backend_review_fixes] 6 dependency factories implementadas em `api/dependencies.py` — todas as rotas API agora funcionais.
+- [19_backend_review_fixes] CORS corrigido: `allow_origins=["*"]` com `allow_credentials=True` substituído por origins configuráveis via env `CORS_ORIGINS`.

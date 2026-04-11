@@ -115,24 +115,52 @@ async def test_try_lock_for_evaluation_returns_false_when_repo_returns_none(serv
 
 
 @pytest.mark.asyncio
-async def test_assign_route_raises_not_implemented(service):
-    with pytest.raises(NotImplementedError):
-        await service.assign_route("truck-001", {})
+async def test_assign_route_sets_cargo_route_and_status(service, repo):
+    truck = MagicMock()
+    truck.status = "idle"
+    repo.get_by_id.return_value = truck
+
+    await service.assign_route("truck-001", "route-123", {"material_id": "m1", "quantity_tons": 10.0})
+
+    repo.set_cargo.assert_awaited_once_with("truck-001", {"material_id": "m1", "quantity_tons": 10.0})
+    repo.set_active_route.assert_awaited_once_with("truck-001", "route-123")
+    repo.update_status.assert_awaited_once_with("truck-001", "in_transit")
 
 
 @pytest.mark.asyncio
-async def test_complete_route_raises_not_implemented(service):
-    with pytest.raises(NotImplementedError):
-        await service.complete_route("truck-001")
+async def test_complete_route_clears_cargo_and_route(service, repo, publisher):
+    truck = MagicMock()
+    truck.status = "in_transit"
+    repo.get_by_id.return_value = truck
+
+    await service.complete_route("truck-001")
+
+    repo.set_cargo.assert_awaited_once_with("truck-001", None)
+    repo.set_active_route.assert_awaited_once_with("truck-001", None)
+    repo.update_status.assert_awaited_once_with("truck-001", "idle")
+    publisher.publish_event.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_interrupt_route_raises_not_implemented(service):
-    with pytest.raises(NotImplementedError):
-        await service.interrupt_route("truck-001", "breakdown")
+async def test_interrupt_route_clears_route_and_sets_idle(service, repo, publisher):
+    truck = MagicMock()
+    truck.status = "in_transit"
+    repo.get_by_id.return_value = truck
+
+    await service.interrupt_route("truck-001", "breakdown")
+
+    repo.set_active_route.assert_awaited_once_with("truck-001", None)
+    repo.update_status.assert_awaited_once_with("truck-001", "idle")
 
 
 @pytest.mark.asyncio
-async def test_schedule_maintenance_raises_not_implemented(service):
-    with pytest.raises(NotImplementedError):
-        await service.schedule_maintenance("truck-001")
+async def test_schedule_maintenance_zeroes_degradation(service, repo, publisher):
+    truck = MagicMock()
+    truck.status = "idle"
+    truck.degradation = 0.8
+    repo.get_by_id.return_value = truck
+
+    await service.schedule_maintenance("truck-001")
+
+    repo.update_status.assert_awaited_once_with("truck-001", "maintenance")
+    repo.update_degradation.assert_awaited_once_with("truck-001", 0.0, 0.0)

@@ -1,16 +1,16 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FactoryCreate(BaseModel):
-    name: str
-    lat: float
-    lng: float
+    name: str = Field(min_length=1, max_length=200)
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
 
 
 class FactoryUpdate(BaseModel):
-    name: str | None = None
-    lat: float | None = None
-    lng: float | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
     status: str | None = None
 
 

@@ -55,10 +55,9 @@ async def test_run_cycle_completes_full_path(mock_db_session, mock_publisher):
     with patch.object(agent, "_build_world_state_slice", AsyncMock(return_value=world_slice)):
         with patch("src.agents.base.ChatOpenAI", return_value=fake_chat):
             with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
-                with patch("src.agents.base.AsyncSession", MagicMock()):
-                    with patch("pathlib.Path.read_text", return_value="You are {entity_id}"):
-                        with patch("src.agents.store_agent.StoreDecision", stub_schema):
-                            await agent.run_cycle(trigger)
+                with patch("pathlib.Path.read_text", return_value="You are {entity_id}"):
+                    with patch("src.agents.store_agent.StoreDecision", stub_schema):
+                        await agent.run_cycle(trigger)
 
     mock_repo.create.assert_called_once()
     call_data = mock_repo.create.call_args[0][0]

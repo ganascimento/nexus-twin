@@ -1,12 +1,12 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MaterialCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
 
 
 class MaterialUpdate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
 
 
 class MaterialResponse(BaseModel):

@@ -1,3 +1,6 @@
+from src.services import NotFoundError
+
+
 class OrderService:
     def __init__(self, repo, warehouse_repo, factory_repo):
         self._repo = repo
@@ -26,6 +29,8 @@ class OrderService:
 
     async def mark_delivered(self, order_id):
         order = await self._repo.get_by_id(order_id)
+        if order is None:
+            raise NotFoundError(f"Order '{order_id}' not found")
         if order.target_type == "warehouse":
             await self._warehouse_repo.release_reserved(
                 order.target_id, order.material_id, order.quantity_tons

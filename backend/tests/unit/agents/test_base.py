@@ -9,14 +9,14 @@ from langchain_core.tools import tool
 from src.agents.base import (
     AgentState,
     WorldStateSlice,
-    act_node,
+    _make_act_node_for_graph,
+    _make_perceive_node,
     build_agent_graph,
     extract_json_from_last_message,
     fast_path_node,
     has_tool_calls,
-    perceive_node,
 )
-from src.agents.master_agent import MasterAgentState, run_master_cycle
+from src.agents.master_agent import MasterAgentState, _make_dispatch_agents_node
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -84,8 +84,8 @@ async def test_perceive_node_adds_system_message_with_entity_id():
         mock_repo_instance.get_recent_by_entity.return_value = [stub_decision]
 
         with patch("pathlib.Path.read_text", return_value="You manage factory-001"):
-            with patch("src.agents.base.AsyncSession", MagicMock()):
-                result = await perceive_node(state)
+            perceive_node = _make_perceive_node(MagicMock())
+            result = await perceive_node(state)
 
     messages = result["messages"]
     assert len(messages) == 1
@@ -128,7 +128,7 @@ async def test_fast_path_emergency_when_stock_below_critical_threshold():
     result = await fast_path_node(state)
 
     assert result["fast_path_taken"] is True
-    assert "emergency" in result["decision"]["action"]
+    assert result["decision"]["action"] == "request_resupply"
 
 
 # ---------------------------------------------------------------------------
@@ -200,9 +200,11 @@ async def test_graph_fast_path_does_not_invoke_llm():
     )
 
     fake_llm = FakeListChatModel(responses=[])
+    mock_repo = AsyncMock()
+    mock_repo.get_recent_by_entity.return_value = []
 
     with patch("src.agents.base.ChatOpenAI", return_value=fake_llm):
-        with patch("src.agents.base.AgentDecisionRepository"):
+        with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
             with patch("pathlib.Path.read_text", return_value="System prompt"):
                 graph = build_agent_graph(
                     agent_type="factory",
@@ -211,7 +213,7 @@ async def test_graph_fast_path_does_not_invoke_llm():
                         "factory": MagicMock(return_value=MagicMock())
                     },
                     db_session=MagicMock(),
-                    publisher_instance=MagicMock(),
+                    publisher_instance=AsyncMock(),
                 )
                 final_state = await graph.ainvoke(state)
 
@@ -240,6 +242,7 @@ async def test_graph_full_path_calls_decision_schema_and_persists():
     decision_schema_map = {"factory": mock_schema_class}
 
     mock_repo = AsyncMock()
+    mock_repo.get_recent_by_entity.return_value = []
     mock_publisher = AsyncMock()
 
     with patch("src.agents.base.ChatOpenAI", return_value=fake_llm):
@@ -287,6 +290,7 @@ async def test_graph_tool_loop_visits_tool_node_and_produces_tool_message():
     mock_schema_class = MagicMock(return_value=mock_schema_instance)
 
     mock_repo = AsyncMock()
+    mock_repo.get_recent_by_entity.return_value = []
     mock_publisher = AsyncMock()
 
     with patch("src.agents.base.ChatOpenAI", return_value=fake_llm):
@@ -322,19 +326,13 @@ async def test_act_node_persists_and_publishes_when_guardrail_passes():
     mock_repo = AsyncMock()
     mock_publisher = AsyncMock()
 
-    patched_state = {
-        **state,
-        "_decision_schema_map": decision_schema_map,
-        "_db_session": MagicMock(),
-        "_publisher": mock_publisher,
-    }
+    act_node_fn = _make_act_node_for_graph(decision_schema_map, MagicMock(), mock_publisher)
 
     with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
-        result = await act_node(patched_state)
+        result = await act_node_fn(state)
 
     assert result["error"] is None
     mock_repo.create.assert_called_once()
-    mock_publisher.publish_decision.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -353,20 +351,14 @@ async def test_act_node_records_error_and_skips_persist_when_guardrail_fails():
     mock_repo = AsyncMock()
     mock_publisher = AsyncMock()
 
-    patched_state = {
-        **state,
-        "_decision_schema_map": decision_schema_map,
-        "_db_session": MagicMock(),
-        "_publisher": mock_publisher,
-    }
+    act_node_fn = _make_act_node_for_graph(decision_schema_map, MagicMock(), mock_publisher)
 
     with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
-        result = await act_node(patched_state)
+        result = await act_node_fn(state)
 
     assert result["error"] is not None
     assert result["decision"] is None
     mock_repo.create.assert_not_called()
-    mock_publisher.publish_decision.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +418,8 @@ def test_extract_json_from_last_message_raises_on_invalid_json():
 
 @pytest.mark.asyncio
 async def test_master_agent_dispatch_creates_task_per_trigger():
+    import asyncio
+
     def make_trigger(entity_id: str, entity_type: str = "store") -> MagicMock:
         t = MagicMock()
         t.entity_id = entity_id
@@ -443,6 +437,9 @@ async def test_master_agent_dispatch_creates_task_per_trigger():
     mock_agent = AsyncMock()
     mock_agent_factory = MagicMock(return_value=mock_agent)
 
+    semaphore = asyncio.Semaphore(4)
+    dispatch_node = _make_dispatch_agents_node(semaphore)
+
     master_state: MasterAgentState = {
         "triggers": triggers,
         "world_state": make_world_state_slice(),
@@ -459,7 +456,7 @@ async def test_master_agent_dispatch_creates_task_per_trigger():
         return task
 
     with patch("asyncio.create_task", side_effect=fake_create_task):
-        result = await run_master_cycle(master_state)
+        await dispatch_node(master_state)
 
     assert len(created_tasks) == 3
 
@@ -471,6 +468,11 @@ async def test_master_agent_dispatch_creates_task_per_trigger():
 
 @pytest.mark.asyncio
 async def test_master_agent_dispatch_skips_create_task_when_no_triggers():
+    import asyncio
+
+    semaphore = asyncio.Semaphore(4)
+    dispatch_node = _make_dispatch_agents_node(semaphore)
+
     master_state: MasterAgentState = {
         "triggers": [],
         "world_state": make_world_state_slice(),
@@ -479,6 +481,6 @@ async def test_master_agent_dispatch_skips_create_task_when_no_triggers():
     }
 
     with patch("asyncio.create_task") as mock_create_task:
-        await run_master_cycle(master_state)
+        await dispatch_node(master_state)
 
     mock_create_task.assert_not_called()

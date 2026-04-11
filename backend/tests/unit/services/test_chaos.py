@@ -91,11 +91,9 @@ async def test_inject_event_creates_with_source_user(service, event_repo):
 
 @pytest.mark.asyncio
 async def test_inject_autonomous_event_returns_none_when_active_event_exists(
-    service, session
+    service, event_repo
 ):
-    scalar_mock = MagicMock()
-    scalar_mock.scalar.return_value = 1
-    session.execute.return_value = scalar_mock
+    event_repo.count_active_autonomous.return_value = 1
 
     result = await service.inject_autonomous_event(
         {"event_type": "machine_failure", "payload": {}}, current_tick=100
@@ -106,11 +104,9 @@ async def test_inject_autonomous_event_returns_none_when_active_event_exists(
 
 @pytest.mark.asyncio
 async def test_inject_autonomous_event_returns_none_when_cooldown_not_passed(
-    service, session, event_repo
+    service, event_repo
 ):
-    scalar_mock = MagicMock()
-    scalar_mock.scalar.return_value = 0
-    session.execute.return_value = scalar_mock
+    event_repo.count_active_autonomous.return_value = 0
     event_repo.get_last_resolved_autonomous_tick.return_value = 90
 
     result = await service.inject_autonomous_event(
@@ -122,11 +118,9 @@ async def test_inject_autonomous_event_returns_none_when_cooldown_not_passed(
 
 @pytest.mark.asyncio
 async def test_inject_autonomous_event_creates_when_conditions_met(
-    service, session, event_repo
+    service, event_repo
 ):
-    scalar_mock = MagicMock()
-    scalar_mock.scalar.return_value = 0
-    session.execute.return_value = scalar_mock
+    event_repo.count_active_autonomous.return_value = 0
     event_repo.get_last_resolved_autonomous_tick.return_value = 50
 
     created = _make_event(source="master_agent")
@@ -143,11 +137,9 @@ async def test_inject_autonomous_event_creates_when_conditions_met(
 
 @pytest.mark.asyncio
 async def test_inject_autonomous_event_creates_when_no_prior_resolved(
-    service, session, event_repo
+    service, event_repo
 ):
-    scalar_mock = MagicMock()
-    scalar_mock.scalar.return_value = 0
-    session.execute.return_value = scalar_mock
+    event_repo.count_active_autonomous.return_value = 0
     event_repo.get_last_resolved_autonomous_tick.return_value = None
 
     created = _make_event(source="master_agent")

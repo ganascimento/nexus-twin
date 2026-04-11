@@ -110,16 +110,8 @@ def make_engine(
 
 @pytest.mark.asyncio
 async def test_apply_physics_advances_truck_position():
-    # path is [lng, lat] pairs; route spans ticks 0→4
-    # At engine._tick=2 the truck is at the midpoint
     truck = make_truck(
         status=TruckStatus.IN_TRANSIT,
-        active_route=TruckRoute(
-            route_id="route-001",
-            path=[[-46.6, -23.5], [-45.8, -22.8]],  # [lng, lat]
-            timestamps=[0, 4],
-            eta_ticks=2,
-        ),
         cargo=TruckCargo(
             material_id="mat-001",
             quantity_tons=10.0,
@@ -131,9 +123,19 @@ async def test_apply_physics_advances_truck_position():
     )
     world_state = make_world_state(trucks=[truck])
 
-    with patch("src.simulation.engine.TruckRepository") as MockTruckRepo:
+    mock_route = MagicMock()
+    mock_route.id = "route-001"
+    mock_route.eta_ticks = 3
+    mock_route.path = [[-46.6, -23.5], [-45.8, -22.8]]
+    mock_route.timestamps = [0, 4]
+
+    with patch("src.simulation.engine.TruckRepository") as MockTruckRepo, \
+         patch("src.simulation.engine.RouteRepository") as MockRouteRepo:
         mock_truck_repo = AsyncMock()
         MockTruckRepo.return_value = mock_truck_repo
+        mock_route_repo = AsyncMock()
+        mock_route_repo.get_active_by_truck.return_value = mock_route
+        MockRouteRepo.return_value = mock_route_repo
 
         engine = make_engine()
         engine._tick = 2
@@ -143,7 +145,6 @@ async def test_apply_physics_advances_truck_position():
     call_args = mock_truck_repo.update_position.call_args[0]
     truck_id, new_lat, new_lng = call_args
     assert truck_id == "truck-001"
-    # Midpoint interpolation: lng = -46.6 + 0.5*(-45.8-(-46.6)) = -46.2; lat = -23.5 + 0.5*(-22.8-(-23.5)) = -23.15
     assert new_lat == pytest.approx(-23.15, abs=1e-6)
     assert new_lng == pytest.approx(-46.2, abs=1e-6)
 
@@ -152,12 +153,6 @@ async def test_apply_physics_advances_truck_position():
 async def test_apply_physics_marks_truck_arrived_when_route_complete():
     truck = make_truck(
         status=TruckStatus.IN_TRANSIT,
-        active_route=TruckRoute(
-            route_id="route-001",
-            path=[[-46.6, -23.5], [-45.8, -22.8]],
-            timestamps=[0, 2],
-            eta_ticks=0,
-        ),
         cargo=TruckCargo(
             material_id="mat-001",
             quantity_tons=10.0,
@@ -169,9 +164,19 @@ async def test_apply_physics_marks_truck_arrived_when_route_complete():
     )
     world_state = make_world_state(trucks=[truck])
 
-    with patch("src.simulation.engine.TruckRepository") as MockTruckRepo:
+    mock_route = MagicMock()
+    mock_route.id = "route-001"
+    mock_route.eta_ticks = 1
+    mock_route.path = [[-46.6, -23.5], [-45.8, -22.8]]
+    mock_route.timestamps = [0, 2]
+
+    with patch("src.simulation.engine.TruckRepository") as MockTruckRepo, \
+         patch("src.simulation.engine.RouteRepository") as MockRouteRepo:
         mock_truck_repo = AsyncMock()
         MockTruckRepo.return_value = mock_truck_repo
+        mock_route_repo = AsyncMock()
+        mock_route_repo.get_active_by_truck.return_value = mock_route
+        MockRouteRepo.return_value = mock_route_repo
 
         engine = make_engine()
         engine._tick = 2
@@ -316,12 +321,6 @@ async def test_apply_physics_increments_truck_degradation():
         status=TruckStatus.IN_TRANSIT,
         degradation=0.1,
         capacity_tons=20.0,
-        active_route=TruckRoute(
-            route_id="route-001",
-            path=[[-46.6, -23.5], [-45.8, -22.8]],
-            timestamps=[0, 4],
-            eta_ticks=2,
-        ),
         cargo=TruckCargo(
             material_id="mat-001",
             quantity_tons=10.0,
@@ -333,9 +332,19 @@ async def test_apply_physics_increments_truck_degradation():
     )
     world_state = make_world_state(trucks=[truck])
 
-    with patch("src.simulation.engine.TruckRepository") as MockTruckRepo:
+    mock_route = MagicMock()
+    mock_route.id = "route-001"
+    mock_route.eta_ticks = 3
+    mock_route.path = [[-46.6, -23.5], [-45.8, -22.8]]
+    mock_route.timestamps = [0, 4]
+
+    with patch("src.simulation.engine.TruckRepository") as MockTruckRepo, \
+         patch("src.simulation.engine.RouteRepository") as MockRouteRepo:
         mock_truck_repo = AsyncMock()
         MockTruckRepo.return_value = mock_truck_repo
+        mock_route_repo = AsyncMock()
+        mock_route_repo.get_active_by_truck.return_value = mock_route
+        MockRouteRepo.return_value = mock_route_repo
 
         engine = make_engine()
         engine._tick = 2
@@ -346,7 +355,6 @@ async def test_apply_physics_increments_truck_degradation():
         mock_truck_repo.update_degradation.call_args[0]
     )
     assert new_degradation > 0.1
-    # At degradation ~0.1 (below 0.7 threshold), breakdown risk is low
     assert new_breakdown_risk < 0.07
 
 

@@ -27,6 +27,7 @@ class StoreService:
 
     async def delete_store(self, id: str) -> None:
         await self._order_service.cancel_orders_from(requester_id=id, reason="requester_deleted")
+        await self._order_service.cancel_orders_targeting(target_id=id, reason="target_deleted")
         await self._repo.delete(id)
         await self._publisher.publish_event("entity_removed", {"entity_type": "store", "entity_id": id})
 

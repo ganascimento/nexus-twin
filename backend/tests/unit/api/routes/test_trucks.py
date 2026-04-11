@@ -91,6 +91,7 @@ async def test_create_truck(client, mock_service):
             "truck_type": "proprietario",
             "lat": -23.55,
             "lng": -46.63,
+            "capacity_tons": 30.0,
         },
     )
 

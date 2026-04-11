@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 import pathlib
@@ -9,14 +8,20 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.repositories.agent_decision import AgentDecisionRepository
+from src.simulation.publisher import publish_agent_decision
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 HIGH_THRESHOLD = 0.85
 CRITICAL_THRESHOLD = 0.10
+
+_EMERGENCY_ACTION_MAP = {
+    "store": "order_replenishment",
+    "warehouse": "request_resupply",
+    "factory": "start_production",
+}
 
 
 class WorldStateSlice(TypedDict):
@@ -80,26 +85,25 @@ def extract_json_from_last_message(messages: list) -> dict:
     raise ValueError("No valid JSON found in last message")
 
 
-async def perceive_node(state: AgentState) -> dict:
-    session = AsyncSession()
-    repo = AgentDecisionRepository(session)
-    history_result = repo.get_recent_by_entity(state["entity_id"], limit=10)
-    history = (
-        await history_result if asyncio.iscoroutine(history_result) else history_result
-    )
+def _make_perceive_node(db_session):
+    async def perceive_node(state: AgentState) -> dict:
+        repo = AgentDecisionRepository(db_session)
+        history = await repo.get_recent_by_entity(state["entity_id"], limit=10)
 
-    prompt_path = (
-        pathlib.Path(__file__).parent / "prompts" / f"{state['entity_type']}.md"
-    )
-    prompt = prompt_path.read_text()
-    prompt = prompt.replace("{entity_id}", state["entity_id"])
-    prompt = prompt.replace("{trigger_event}", state["trigger_event"])
+        prompt_path = (
+            pathlib.Path(__file__).parent / "prompts" / f"{state['entity_type']}.md"
+        )
+        prompt = prompt_path.read_text()
+        prompt = prompt.replace("{entity_id}", state["entity_id"])
+        prompt = prompt.replace("{trigger_event}", state["trigger_event"])
 
-    return {
-        **state,
-        "messages": [SystemMessage(content=prompt)],
-        "decision_history": history,
-    }
+        return {
+            **state,
+            "messages": [SystemMessage(content=prompt)],
+            "decision_history": history,
+        }
+
+    return perceive_node
 
 
 async def fast_path_node(state: AgentState) -> dict:
@@ -111,7 +115,11 @@ async def fast_path_node(state: AgentState) -> dict:
             return {
                 **state,
                 "fast_path_taken": True,
-                "decision": {"action": "request_maintenance", "payload": {}},
+                "decision": {
+                    "action": "request_maintenance",
+                    "reasoning_summary": "fast-path: degradation >= 95%, maintenance required",
+                    "payload": {"current_degradation": entity.get("degradation", 1.0)},
+                },
             }
         return {**state, "fast_path_taken": False}
 
@@ -127,13 +135,22 @@ async def fast_path_node(state: AgentState) -> dict:
             return {
                 **state,
                 "fast_path_taken": True,
-                "decision": {"action": "hold", "payload": {}},
+                "decision": {
+                    "action": "hold",
+                    "reasoning_summary": f"fast-path: stock ratio {ratio:.0%} above {HIGH_THRESHOLD:.0%} threshold",
+                    "payload": None,
+                },
             }
         if ratio < CRITICAL_THRESHOLD:
+            emergency_action = _EMERGENCY_ACTION_MAP.get(entity_type, "hold")
             return {
                 **state,
                 "fast_path_taken": True,
-                "decision": {"action": "emergency_order", "payload": {}},
+                "decision": {
+                    "action": emergency_action,
+                    "reasoning_summary": f"fast-path: stock ratio {ratio:.0%} below {CRITICAL_THRESHOLD:.0%} critical threshold",
+                    "payload": None,
+                },
             }
 
     return {**state, "fast_path_taken": False}
@@ -152,59 +169,39 @@ def _make_decide_node(llm, tools):
     return decide_node
 
 
-async def act_node(state: AgentState) -> dict:
-    schema_map = state.get("_decision_schema_map")
-    publisher = state.get("_publisher")
-    db_session = state.get("_db_session")
-
-    try:
-        raw = extract_json_from_last_message(state["messages"])
-        schema_class = schema_map[state["entity_type"]]
-        schema_class(**raw)
-        repo = AgentDecisionRepository(db_session)
-        await repo.create(
-            {
-                "entity_id": state["entity_id"],
-                "entity_type": state["entity_type"],
-                "tick": state["current_tick"],
-                "action": raw.get("action"),
-                "payload": raw.get("payload", {}),
-            }
-        )
-        await publisher.publish_decision(
-            state["entity_id"],
-            state["entity_type"],
-            raw,
-        )
-        return {**state, "decision": raw, "error": None}
-    except Exception as e:
-        return {**state, "decision": None, "error": str(e)}
-
-
 def _make_act_node_for_graph(decision_schema_map, db_session, publisher_instance):
     async def _act_node(state: AgentState) -> dict:
-        schema_map = state.get("_decision_schema_map", decision_schema_map)
-        publisher = state.get("_publisher", publisher_instance)
-        session = state.get("_db_session", db_session)
+        schema_map = decision_schema_map
+        session = db_session
 
         try:
-            raw = extract_json_from_last_message(state["messages"])
-            schema_class = schema_map[state["entity_type"]]
-            schema_class(**raw)
+            if state.get("fast_path_taken") and state.get("decision"):
+                raw = state["decision"]
+            else:
+                raw = extract_json_from_last_message(state["messages"])
+
+            entity_type = state["entity_type"]
+            if entity_type in schema_map:
+                schema_map[entity_type](**raw)
+
             repo = AgentDecisionRepository(session)
             await repo.create(
                 {
                     "entity_id": state["entity_id"],
-                    "entity_type": state["entity_type"],
+                    "entity_type": entity_type,
                     "tick": state["current_tick"],
                     "action": raw.get("action"),
                     "payload": raw.get("payload", {}),
                 }
             )
-            await publisher.publish_decision(
-                state["entity_id"],
-                state["entity_type"],
-                raw,
+            await publish_agent_decision(
+                {
+                    "entity_id": state["entity_id"],
+                    "entity_type": entity_type,
+                    **raw,
+                },
+                state["current_tick"],
+                publisher_instance,
             )
             return {**state, "decision": raw, "error": None}
         except Exception as e:
@@ -222,13 +219,14 @@ def build_agent_graph(
 ):
     llm = ChatOpenAI(model=OPENAI_MODEL)
 
+    perceive_fn = _make_perceive_node(db_session)
     decide_node = _make_decide_node(llm, tools)
     act_node_fn = _make_act_node_for_graph(
         decision_schema_map, db_session, publisher_instance
     )
 
     graph = StateGraph(AgentState)
-    graph.add_node("perceive", perceive_node)
+    graph.add_node("perceive", perceive_fn)
     graph.add_node("fast_path", fast_path_node)
     graph.add_node("decide", decide_node)
     graph.add_node("tool_node", ToolNode(tools))
@@ -238,7 +236,7 @@ def build_agent_graph(
     graph.add_edge("perceive", "fast_path")
     graph.add_conditional_edges(
         "fast_path",
-        lambda state: END if state["fast_path_taken"] else "decide",
+        lambda state: "act" if state["fast_path_taken"] else "decide",
     )
     graph.add_conditional_edges(
         "decide",

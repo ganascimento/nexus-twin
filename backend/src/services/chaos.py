@@ -1,6 +1,5 @@
 from uuid import UUID
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import ChaosEvent
@@ -26,18 +25,7 @@ class ChaosService:
     async def inject_autonomous_event(
         self, data: dict, current_tick: int
     ) -> ChaosEvent | None:
-        row = await self._session.execute(
-            select(func.count(ChaosEvent.id))
-            .where(ChaosEvent.status == "active")
-            .with_for_update()
-        )
-        active_count = row.scalar()
-
-        if active_count > 0:
-            return None
-
-        last_tick = await self._repo.get_last_resolved_autonomous_tick()
-        if last_tick is not None and (current_tick - last_tick) < AUTONOMOUS_COOLDOWN_TICKS:
+        if not await self.can_inject_autonomous_event(current_tick):
             return None
 
         return await self._repo.create(
@@ -47,7 +35,7 @@ class ChaosService:
     async def resolve_event(self, event_id: UUID, current_tick: int) -> ChaosEvent:
         event = await self._repo.get_by_id(event_id)
         if event is None:
-            raise NotFoundError(event_id)
+            raise NotFoundError(f"ChaosEvent '{event_id}' not found")
         if event.status == "resolved":
             raise ConflictError(f"Event {event_id} is already resolved")
         return await self._repo.resolve(event_id, current_tick)

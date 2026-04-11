@@ -130,7 +130,9 @@ async def test_confirm_order_calls_atomic_reserve_and_returns_updated_order(
 
 
 @pytest.mark.asyncio
-async def test_confirm_order_returns_none_if_insufficient_stock(service, repo, order_repo):
+async def test_confirm_order_raises_conflict_if_insufficient_stock(service, repo, order_repo):
+    from src.services import ConflictError
+
     order_id = uuid.uuid4()
     order = MagicMock()
     order.target_id = "wh-001"
@@ -139,11 +141,11 @@ async def test_confirm_order_returns_none_if_insufficient_stock(service, repo, o
     order_repo.get_by_id.return_value = order
     repo.atomic_reserve_stock.return_value = False
 
-    result = await service.confirm_order(order_id, eta_ticks=5)
+    with pytest.raises(ConflictError):
+        await service.confirm_order(order_id, eta_ticks=5)
 
     repo.atomic_reserve_stock.assert_called_once_with("wh-001", "tijolos", 200.0)
     order_repo.update_status.assert_not_called()
-    assert result is None
 
 
 @pytest.mark.asyncio
@@ -171,8 +173,19 @@ async def test_adjust_stock_raises_value_error_if_negative_result(service, repo)
 
 @pytest.mark.asyncio
 async def test_adjust_stock_applies_valid_delta(service, repo):
+    warehouse = MagicMock()
+    warehouse.capacity_total = 1000.0
+    repo.get_by_id.return_value = warehouse
+
     stock_entry = MagicMock()
     stock_entry.stock = 50.0
+    stock_entry.material_id = "tijolos"
     repo.get_stock.return_value = stock_entry
+
+    other_stock = MagicMock()
+    other_stock.stock = 100.0
+    other_stock.material_id = "cimento"
+    repo.get_all_stocks.return_value = [stock_entry, other_stock]
+
     await service.adjust_stock("wh-001", "tijolos", 20.0)
     repo.update_stock.assert_called_once_with("wh-001", "tijolos", 20.0)

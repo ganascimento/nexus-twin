@@ -91,6 +91,12 @@ class WarehouseRepository:
         )
         return result.scalar_one_or_none() is not None
 
+    async def get_all_stocks(self, warehouse_id: str) -> list[WarehouseStock]:
+        result = await self._session.execute(
+            select(WarehouseStock).where(WarehouseStock.warehouse_id == warehouse_id)
+        )
+        return result.scalars().all()
+
     async def get_total_stock_used(self, warehouse_id: str) -> float:
         stmt = select(func.coalesce(func.sum(WarehouseStock.stock), 0)).where(
             WarehouseStock.warehouse_id == warehouse_id
