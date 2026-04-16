@@ -1,4 +1,13 @@
+import re
+
 from src.services import ConflictError, NotFoundError
+
+
+def _slugify(name: str) -> str:
+    slug = name.lower().strip()
+    slug = re.sub(r"[^\w\s-]", "", slug)
+    slug = re.sub(r"[\s_]+", "-", slug)
+    return slug[:50]
 
 
 class MaterialService:
@@ -9,7 +18,10 @@ class MaterialService:
         return await self._repo.get_all(active_only=active_only)
 
     async def create_material(self, data: dict):
-        return await self._repo.create(data)
+        payload = data.copy()
+        if "id" not in payload:
+            payload["id"] = _slugify(payload["name"])
+        return await self._repo.create(payload)
 
     async def update_material(self, id: str, data: dict):
         existing = await self._repo.get_by_id(id)

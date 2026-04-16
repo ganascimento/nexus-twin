@@ -16,9 +16,10 @@ class TruckResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    name: str
     truck_type: str
+    capacity_tons: float
     status: str
     degradation: float
-    lat: float
-    lng: float
+    current_lat: float
+    current_lng: float
+    factory_id: str | None = None

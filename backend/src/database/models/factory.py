@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Float, Integer, ForeignKey, TIMESTAMP, PrimaryKeyConstraint
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from . import Base
@@ -14,6 +15,9 @@ class Factory(Base):
     status = Column(String(20), nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    products = relationship("FactoryProduct", lazy="selectin")
+    partner_warehouses = relationship("FactoryPartnerWarehouse", lazy="selectin")
 
 
 class FactoryProduct(Base):

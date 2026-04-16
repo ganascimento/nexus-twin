@@ -17,7 +17,7 @@ class StoreAgent:
 
     async def _build_world_state_slice(self, current_tick: int) -> WorldStateSlice:
         store = await StoreRepository(self._db_session).get_by_id(self._entity_id)
-        warehouses = await WarehouseRepository(self._db_session).list_by_region(store.region)
+        warehouses = await WarehouseRepository(self._db_session).get_all()
         orders = await OrderRepository(self._db_session).get_pending_for_requester(self._entity_id)
         events = await EventRepository(self._db_session).get_active_for_entity("store", self._entity_id)
 
@@ -34,7 +34,6 @@ class StoreAgent:
         entity = {
             "id": store.id,
             "name": store.name,
-            "region": store.region,
             "stocks": stocks,
         }
 

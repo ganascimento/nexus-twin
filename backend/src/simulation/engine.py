@@ -3,6 +3,10 @@ import os
 
 from loguru import logger
 
+from src.agents.factory_agent import FactoryAgent
+from src.agents.store_agent import StoreAgent
+from src.agents.truck_agent import TruckAgent
+from src.agents.warehouse_agent import WarehouseAgent
 from src.enums import TruckStatus
 from src.repositories.event import EventRepository
 from src.repositories.factory import FactoryRepository
@@ -28,6 +32,13 @@ from src.world.physics import (
     is_trip_blocked,
 )
 from src.world.state import WorldState
+
+AGENT_MAP = {
+    "store": StoreAgent,
+    "warehouse": WarehouseAgent,
+    "factory": FactoryAgent,
+    "truck": TruckAgent,
+}
 
 
 class SimulationEngine:
@@ -187,6 +198,17 @@ class SimulationEngine:
 
         return path[-1][0], path[-1][1]
 
+    def _make_agent_callable(self, entity_type: str, entity_id: str):
+        async def _run(event):
+            agent_class = AGENT_MAP.get(entity_type)
+            if agent_class is None:
+                return
+            async with self._session_factory() as session:
+                agent = agent_class(entity_id, session, self._publisher_redis_client)
+                await agent.run_cycle(event)
+                await session.commit()
+        return _run
+
     async def _evaluate_triggers(self, world_state: WorldState) -> list[tuple]:
         triggers = []
 
@@ -220,7 +242,7 @@ class SimulationEngine:
                     if should_trigger and not triggered:
                         triggers.append(
                             (
-                                None,
+                                self._make_agent_callable("store", store.id),
                                 trigger_event(
                                     "store", store.id, LOW_STOCK_TRIGGER, self._tick
                                 ),
@@ -236,7 +258,7 @@ class SimulationEngine:
                         if not triggered:
                             triggers.append(
                                 (
-                                    None,
+                                    self._make_agent_callable("warehouse", warehouse.id),
                                     trigger_event(
                                         "warehouse", warehouse.id, STOCK_TRIGGER_WAREHOUSE, self._tick
                                     ),
@@ -251,7 +273,7 @@ class SimulationEngine:
                         if not triggered:
                             triggers.append(
                                 (
-                                    None,
+                                    self._make_agent_callable("factory", factory.id),
                                     trigger_event(
                                         "factory", factory.id, STOCK_TRIGGER_FACTORY, self._tick
                                     ),
@@ -266,7 +288,7 @@ class SimulationEngine:
                 if active_events:
                     triggers.append(
                         (
-                            None,
+                            self._make_agent_callable("truck", truck.id),
                             trigger_event(
                                 "truck",
                                 truck.id,
@@ -298,4 +320,7 @@ class SimulationEngine:
     async def _dispatch_agent(self, agent_fn, event) -> None:
         async with self._semaphore:
             if agent_fn is not None:
-                await agent_fn(event)
+                try:
+                    await agent_fn(event)
+                except Exception as exc:
+                    logger.error("Agent dispatch failed for {}: {}", event, exc)

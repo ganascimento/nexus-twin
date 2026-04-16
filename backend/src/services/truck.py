@@ -1,3 +1,5 @@
+import uuid
+
 from src.enums import TruckStatus
 from src.services import ConflictError, NotFoundError
 from src.world.physics import calculate_maintenance_ticks
@@ -19,9 +21,20 @@ class TruckService:
 
     async def create_truck(self, data: dict):
         payload = data.copy()
+        if "id" not in payload:
+            payload["id"] = f"truck-{uuid.uuid4().hex[:8]}"
         payload["status"] = TruckStatus.IDLE.value
         payload["degradation"] = 0.0
         payload["breakdown_risk"] = 0.0
+        if "lat" in payload:
+            lat = payload.pop("lat")
+            payload.setdefault("base_lat", lat)
+            payload.setdefault("current_lat", lat)
+        if "lng" in payload:
+            lng = payload.pop("lng")
+            payload.setdefault("base_lng", lng)
+            payload.setdefault("current_lng", lng)
+        payload.pop("name", None)
         return await self._repo.create(payload)
 
     async def delete_truck(self, id: str) -> None:

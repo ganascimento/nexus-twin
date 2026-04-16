@@ -1,3 +1,5 @@
+import uuid
+
 from src.services import NotFoundError
 
 
@@ -17,7 +19,12 @@ class FactoryService:
         return factory
 
     async def create_factory(self, data: dict):
-        return await self._repo.create(data)
+        payload = data.copy()
+        if "id" not in payload:
+            payload["id"] = f"factory-{uuid.uuid4().hex[:8]}"
+        if "status" not in payload:
+            payload["status"] = "operating"
+        return await self._repo.create(payload)
 
     async def update_factory(self, id: str, data: dict):
         factory = await self._repo.get_by_id(id)
@@ -26,6 +33,9 @@ class FactoryService:
         return await self._repo.update(id, data)
 
     async def delete_factory(self, id: str) -> None:
+        factory = await self._repo.get_by_id(id)
+        if factory is None:
+            raise NotFoundError(f"Factory '{id}' not found")
         await self._order_repo.bulk_cancel_by_target(id, "target_deleted")
         await self._repo.delete(id)
         await self._publisher.publish_event(

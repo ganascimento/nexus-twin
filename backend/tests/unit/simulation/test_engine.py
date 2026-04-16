@@ -83,10 +83,7 @@ def make_warehouse(stocks: dict | None = None, **kwargs) -> Warehouse:
     return Warehouse(**defaults)
 
 
-def make_engine(
-    world_state_service=None, redis_client=None, session_factory=None, max_workers=4
-):
-    ws_service = world_state_service or AsyncMock()
+def make_engine(redis_client=None, session_factory=None, max_workers=4):
     rc = redis_client or AsyncMock()
 
     if session_factory is None:
@@ -98,7 +95,7 @@ def make_engine(
 
         session_factory = _session_factory
 
-    engine = SimulationEngine(ws_service, rc, session_factory)
+    engine = SimulationEngine(rc, session_factory)
     engine._semaphore = asyncio.Semaphore(max_workers)
     return engine
 
@@ -544,24 +541,29 @@ async def test_tick_does_not_block_on_agent_tasks():
     dummy_event = MagicMock()
     dummy_event.entity_id = "store-001"
 
-    ws_service = AsyncMock()
     world_state = make_world_state()
-    ws_service.load.return_value = world_state
 
-    engine = make_engine(world_state_service=ws_service)
+    engine = make_engine()
 
-    with patch.object(engine, "_apply_physics", new_callable=AsyncMock):
-        with patch.object(
-            engine, "_evaluate_triggers", new_callable=AsyncMock
-        ) as mock_triggers:
-            mock_triggers.return_value = [(agent_fn, dummy_event)]
-            with patch(
-                "src.simulation.engine.publish_world_state", new_callable=AsyncMock
-            ):
+    with patch(
+        "src.services.world_state.WorldStateService"
+    ) as MockWSService:
+        mock_ws_instance = AsyncMock()
+        mock_ws_instance.load.return_value = world_state
+        MockWSService.return_value = mock_ws_instance
+
+        with patch.object(engine, "_apply_physics", new_callable=AsyncMock):
+            with patch.object(
+                engine, "_evaluate_triggers", new_callable=AsyncMock
+            ) as mock_triggers:
+                mock_triggers.return_value = [(agent_fn, dummy_event)]
                 with patch(
-                    "asyncio.create_task", wraps=asyncio.create_task
-                ) as mock_create_task:
-                    await engine.run_tick()
+                    "src.simulation.engine.publish_world_state", new_callable=AsyncMock
+                ):
+                    with patch(
+                        "asyncio.create_task", wraps=asyncio.create_task
+                    ) as mock_create_task:
+                        await engine.run_tick()
 
     # create_task must have been called (not await)
     mock_create_task.assert_called()

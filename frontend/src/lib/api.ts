@@ -270,7 +270,6 @@ export interface StoreCreate {
   name: string;
   lat: number;
   lng: number;
-  region: string;
 }
 
 export interface StoreResponse {
@@ -279,7 +278,6 @@ export interface StoreResponse {
   lat: number;
   lng: number;
   status: string;
-  region: string;
 }
 
 export function createStore(data: StoreCreate): Promise<StoreResponse> {
@@ -304,12 +302,13 @@ export interface TruckCreate {
 
 export interface TruckResponse {
   id: string;
-  name: string;
   truck_type: string;
+  capacity_tons: number;
   status: string;
   degradation: number;
-  lat: number;
-  lng: number;
+  current_lat: number;
+  current_lng: number;
+  factory_id: string | null;
 }
 
 export function createTruck(data: TruckCreate): Promise<TruckResponse> {

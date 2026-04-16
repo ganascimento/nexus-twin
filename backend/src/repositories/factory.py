@@ -1,7 +1,7 @@
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import Factory, FactoryPartnerWarehouse, FactoryProduct, Warehouse
+from src.database.models import Factory, FactoryPartnerWarehouse, FactoryProduct, Truck, Warehouse
 
 
 class FactoryRepository:
@@ -62,6 +62,9 @@ class FactoryRepository:
         return factory
 
     async def delete(self, id: str) -> None:
+        await self._session.execute(
+            update(Truck).where(Truck.factory_id == id).values(factory_id=None)
+        )
         await self._session.execute(
             delete(FactoryPartnerWarehouse).where(
                 FactoryPartnerWarehouse.factory_id == id

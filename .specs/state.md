@@ -8,28 +8,31 @@
 
 ## Feature Progress
 
-| #   | Feature              | Status | Notes                                                                  |
-| --- | -------------------- | ------ | ---------------------------------------------------------------------- |
-| 01  | project_setup        | done   |                                                                        |
-| 02  | db_models            | done   | enums.py adicionado retroativamente — Python Enum + String column      |
-| 03  | db_migrations_seed   | done   |                                                                        |
-| 04  | repositories         | done   |                                                                        |
-| 05  | world_state          | done   |                                                                        |
-| 06  | services_entities    | done   |                                                                        |
-| 07  | simulation_engine    | done   |                                                                        |
-| 08  | agent_base           | done   |                                                                        |
-| 09  | agents               | done   |                                                                        |
-| 10  | guardrails           | done   |                                                                        |
-| 11  | agent_tools          | done   |                                                                        |
-| 12  | services_chaos       | done   |                                                                        |
-| 13  | api_rest             | done   |                                                                        |
-| 14  | api_websocket        | done   |                                                                        |
-| 15  | celery_workers       | done   |                                                                        |
-| 16  | frontend_base        | done   |                                                                        |
-| 17  | frontend_map         | done   |                                                                        |
-| 18  | frontend_hud         | done   |                                                                        |
-| 19  | backend_review_fixes | done   | Code review fixes: agent state machine, services, API, engine, physics |
-| 20  | critical_bug_fixes   | done   | 11 critical bugs fixed: WorldState crash, API endpoints, agent system, engine commit, route creation |
+| #   | Feature                      | Status  | Notes                                                                                                |
+| --- | ---------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
+| 01  | project_setup                | done    |                                                                                                      |
+| 02  | db_models                    | done    | enums.py adicionado retroativamente — Python Enum + String column                                    |
+| 03  | db_migrations_seed           | done    |                                                                                                      |
+| 04  | repositories                 | done    |                                                                                                      |
+| 05  | world_state                  | done    |                                                                                                      |
+| 06  | services_entities            | done    |                                                                                                      |
+| 07  | simulation_engine            | done    |                                                                                                      |
+| 08  | agent_base                   | done    |                                                                                                      |
+| 09  | agents                       | done    |                                                                                                      |
+| 10  | guardrails                   | done    |                                                                                                      |
+| 11  | agent_tools                  | done    |                                                                                                      |
+| 12  | services_chaos               | done    |                                                                                                      |
+| 13  | api_rest                     | done    |                                                                                                      |
+| 14  | api_websocket                | done    |                                                                                                      |
+| 15  | celery_workers               | done    |                                                                                                      |
+| 16  | frontend_base                | done    |                                                                                                      |
+| 17  | frontend_map                 | done    |                                                                                                      |
+| 18  | frontend_hud                 | done    |                                                                                                      |
+| 19  | backend_review_fixes         | done    | Code review fixes: agent state machine, services, API, engine, physics                               |
+| 20  | critical_bug_fixes           | done    | 11 critical bugs fixed: WorldState crash, API endpoints, agent system, engine commit, route creation |
+| 21  | integration_tests_crud       | done    | 57 integration tests; exposed+fixed 6 bugs: missing ID generation, delete without NotFound check, Truck field mapping, Store region mismatch, FK cascade on factory delete |
+| 22  | integration_tests_simulation | done    | 22 integration tests: lifecycle, physics, triggers, multi-tick; exposed RuntimeError vs ConflictError gap in tick-while-running |
+| 23  | integration_tests_agent_e2e  | done    | 9 E2E tests; wired agents to engine; added ORM relationships; fixed store agent region; engine resilient to agent errors |
 
 ---
 
@@ -78,3 +81,16 @@
 - [20_critical_bug_fixes] `agents/base.py` `_act_node` — `entity_type` corrigido para `agent_type` (nome real da coluna em `AgentDecision`), `event_type` adicionado (coluna NOT NULL que faltava).
 - [20_critical_bug_fixes] `simulation/engine.py` `_apply_physics` — `await session.commit()` adicionado ao final; sem ele, todas as escritas de physics eram descartadas por rollback implícito.
 - [20_critical_bug_fixes] `services/route.py` `create_route` — assinatura e dict corrigidos para `origin_type`+`origin_id`+`dest_type`+`dest_id`+`started_at`; removido `distance_km` (coluna inexistente) e `destination_id` (campo errado).
+- [21_integration_tests_crud] Todos os services de create (material, factory, warehouse, store, truck) não geravam `id` — inserções falhavam com NULL PK. Corrigido: material usa slug do nome, demais usam `{type}-{uuid[:8]}`.
+- [21_integration_tests_crud] Services de create não definiam `status` default — factories/warehouses ficavam com status NULL. Corrigido: factory/warehouse="operating", store="open".
+- [21_integration_tests_crud] `TruckService.create_truck` recebia `name`/`lat`/`lng` do API model mas ORM tem `base_lat`/`base_lng`/`current_lat`/`current_lng` e não tem `name`. Corrigido: service mapeia campos e descarta `name`.
+- [21_integration_tests_crud] `TruckResponse` API model tinha `name`/`lat`/`lng` incompatíveis com ORM. Corrigido: response usa `current_lat`/`current_lng`/`capacity_tons`/`factory_id`.
+- [21_integration_tests_crud] `StoreCreate`/`StoreResponse` tinham `region` mas ORM Store não tem essa coluna. Corrigido: removido `region` dos API models.
+- [21_integration_tests_crud] Delete de factory/warehouse/store não verificava existência — retornava 200 para entidades inexistentes. Corrigido: `get_by_id` + `NotFoundError` antes de deletar.
+- [21_integration_tests_crud] `FactoryRepository.delete` falhava com FK violation quando factory tinha trucks vinculados. Corrigido: SET NULL em `trucks.factory_id` antes de deletar.
+- [22_integration_tests_simulation] `seeded_simulation_client` fixture precisa de DELETE+re-seed entre testes porque o engine commita via session_factory separada (rollback do conftest raiz não desfaz). Implementado truncate de todas as tabelas antes de cada seed.
+- [22_integration_tests_simulation] `SimulationEngine.advance_one_tick()` levanta `RuntimeError` quando engine está rodando, mas a rota `/simulation/tick` só captura `ConflictError` — resulta em 500 em vez de 409. Documentado no teste como comportamento atual.
+- [23_integration_tests_agent_e2e] Engine `_evaluate_triggers` retornava `(None, event)` para todos os triggers — agentes nunca rodavam. Corrigido: `_make_agent_callable` cria closure que instancia o agente correto com session fresh e chama `run_cycle`.
+- [23_integration_tests_agent_e2e] ORM models Factory/Warehouse/Store não tinham `relationship()` — agentes crashavam ao acessar `.products`, `.stocks`. Corrigido: adicionado `relationship(..., lazy="selectin")` em todos.
+- [23_integration_tests_agent_e2e] StoreAgent acessava `store.region` (coluna removida em F21). Corrigido: removido do entity dict, `list_by_region` substituído por `get_all`.
+- [23_integration_tests_agent_e2e] `_dispatch_agent` não capturava exceções — agent crash podia matar o engine. Corrigido: try/except com log.

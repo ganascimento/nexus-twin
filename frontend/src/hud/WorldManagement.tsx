@@ -580,22 +580,18 @@ function StoresTab() {
   const [formName, setFormName] = useState("");
   const [formLat, setFormLat] = useState("");
   const [formLng, setFormLng] = useState("");
-  const [formRegion, setFormRegion] = useState("");
-
   const handleCreate = async () => {
-    if (!formName.trim() || !formLat || !formLng || !formRegion.trim()) return;
+    if (!formName.trim() || !formLat || !formLng) return;
     setError(null);
     try {
       await createStore({
         name: formName.trim(),
         lat: parseFloat(formLat),
         lng: parseFloat(formLng),
-        region: formRegion.trim(),
       });
       setFormName("");
       setFormLat("");
       setFormLng("");
-      setFormRegion("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create store");
     }
@@ -651,15 +647,6 @@ function StoresTab() {
               placeholder="-46.63"
               value={formLng}
               onChange={(e) => setFormLng(e.target.value)}
-              className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
-            />
-          </div>
-          <div className="w-28">
-            <Label className="text-gray-400 text-xs">Region</Label>
-            <Input
-              placeholder="Region"
-              value={formRegion}
-              onChange={(e) => setFormRegion(e.target.value)}
               className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
             />
           </div>

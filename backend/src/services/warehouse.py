@@ -1,3 +1,5 @@
+import uuid
+
 from src.services import ConflictError, NotFoundError
 
 
@@ -17,7 +19,12 @@ class WarehouseService:
         return warehouse
 
     async def create_warehouse(self, data: dict):
-        return await self._repo.create(data)
+        payload = data.copy()
+        if "id" not in payload:
+            payload["id"] = f"warehouse-{uuid.uuid4().hex[:8]}"
+        if "status" not in payload:
+            payload["status"] = "operating"
+        return await self._repo.create(payload)
 
     async def update_warehouse(self, id: str, data: dict):
         warehouse = await self._repo.get_by_id(id)
@@ -26,6 +33,9 @@ class WarehouseService:
         return await self._repo.update(id, data)
 
     async def delete_warehouse(self, id: str) -> None:
+        warehouse = await self._repo.get_by_id(id)
+        if warehouse is None:
+            raise NotFoundError(f"Warehouse '{id}' not found")
         await self._order_repo.bulk_cancel_by_target(id, "target_deleted")
         await self._repo.delete(id)
         await self._publisher.publish_event(

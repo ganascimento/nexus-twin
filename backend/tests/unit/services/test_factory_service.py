@@ -53,7 +53,6 @@ async def test_get_factory_returns_complete_detail(service, repo):
 @pytest.mark.asyncio
 async def test_create_factory_persists_with_products_and_partners(service, repo):
     data = {
-        "id": "factory-001",
         "name": "Fábrica Campinas",
         "lat": -22.9056,
         "lng": -47.0608,
@@ -63,7 +62,11 @@ async def test_create_factory_persists_with_products_and_partners(service, repo)
     created = MagicMock()
     repo.create.return_value = created
     result = await service.create_factory(data)
-    repo.create.assert_called_once_with(data)
+    repo.create.assert_called_once()
+    passed = repo.create.call_args[0][0]
+    assert passed["name"] == "Fábrica Campinas"
+    assert passed["status"] == "operating"
+    assert "id" in passed
     assert result == created
 
 

@@ -25,29 +25,31 @@ async def client(mock_service):
 
 def _make_truck(
     id: str = "truck-1",
-    name: str = "Caminhao Alpha",
     truck_type: str = "proprietario",
+    capacity_tons: float = 30.0,
     status: str = "idle",
     degradation: float = 0.0,
-    lat: float = -23.55,
-    lng: float = -46.63,
+    current_lat: float = -23.55,
+    current_lng: float = -46.63,
+    factory_id: str | None = None,
 ):
     t = MagicMock()
     t.id = id
-    t.name = name
     t.truck_type = truck_type
+    t.capacity_tons = capacity_tons
     t.status = status
     t.degradation = degradation
-    t.lat = lat
-    t.lng = lng
+    t.current_lat = current_lat
+    t.current_lng = current_lng
+    t.factory_id = factory_id
     return t
 
 
 @pytest.mark.asyncio
 async def test_list_trucks(client, mock_service):
     trucks = [
-        _make_truck("truck-1", "Caminhao Alpha"),
-        _make_truck("truck-2", "Caminhao Beta", truck_type="terceiro"),
+        _make_truck("truck-1"),
+        _make_truck("truck-2", truck_type="terceiro"),
     ]
     mock_service.list_trucks.return_value = trucks
 
@@ -61,7 +63,7 @@ async def test_list_trucks(client, mock_service):
 
 @pytest.mark.asyncio
 async def test_get_truck(client, mock_service):
-    truck = _make_truck("truck-1", "Caminhao Alpha")
+    truck = _make_truck("truck-1")
     mock_service.get_truck.return_value = truck
 
     resp = await client.get("/api/v1/entities/trucks/truck-1")
@@ -81,7 +83,7 @@ async def test_get_truck_not_found(client, mock_service):
 
 @pytest.mark.asyncio
 async def test_create_truck(client, mock_service):
-    created = _make_truck("truck-new", "Caminhao Novo")
+    created = _make_truck("truck-new")
     mock_service.create_truck.return_value = created
 
     resp = await client.post(

@@ -53,7 +53,6 @@ async def test_get_store_returns_complete_detail(service, repo):
 @pytest.mark.asyncio
 async def test_create_store_with_materials_demand_and_reorder(service, repo):
     data = {
-        "id": "store-001",
         "name": "Loja SP Capital",
         "stocks": [
             {"material_id": "tijolos", "stock": 0.0, "demand_rate": 2.0, "reorder_point": 10.0}
@@ -62,7 +61,11 @@ async def test_create_store_with_materials_demand_and_reorder(service, repo):
     created = MagicMock()
     repo.create.return_value = created
     result = await service.create_store(data)
-    repo.create.assert_called_once_with(data)
+    repo.create.assert_called_once()
+    passed = repo.create.call_args[0][0]
+    assert passed["name"] == "Loja SP Capital"
+    assert passed["status"] == "open"
+    assert "id" in passed
     assert result == created
 
 

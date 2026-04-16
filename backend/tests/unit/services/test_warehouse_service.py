@@ -54,14 +54,17 @@ async def test_get_warehouse_returns_complete_detail(service, repo):
 @pytest.mark.asyncio
 async def test_create_warehouse_with_materials_and_minimums(service, repo):
     data = {
-        "id": "wh-001",
         "name": "Armazém Ribeirão Preto",
         "stocks": [{"material_id": "tijolos", "stock": 0.0, "min_stock": 20.0}],
     }
     created = MagicMock()
     repo.create.return_value = created
     result = await service.create_warehouse(data)
-    repo.create.assert_called_once_with(data)
+    repo.create.assert_called_once()
+    passed = repo.create.call_args[0][0]
+    assert passed["name"] == "Armazém Ribeirão Preto"
+    assert passed["status"] == "operating"
+    assert "id" in passed
     assert result == created
 
 
