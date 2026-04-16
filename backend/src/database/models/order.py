@@ -21,5 +21,6 @@ class PendingOrder(Base):
     rejection_reason = Column(Text, nullable=True)
     cancellation_reason = Column(Text, nullable=True)
     eta_ticks = Column(Integer, nullable=True)
+    triggered_at_tick = Column(Integer, nullable=True, default=None)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

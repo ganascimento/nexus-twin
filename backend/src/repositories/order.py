@@ -77,6 +77,40 @@ class OrderRepository:
         )
         return result.scalar_one()
 
+    async def get_untriggered_for_target(self, target_id: str) -> list[PendingOrder]:
+        result = await self._session.execute(
+            select(PendingOrder).where(
+                PendingOrder.target_id == target_id,
+                PendingOrder.status == "pending",
+                PendingOrder.triggered_at_tick.is_(None),
+            )
+        )
+        return result.scalars().all()
+
+    async def mark_triggered(self, order_id: UUID, tick: int) -> None:
+        await self._session.execute(
+            update(PendingOrder)
+            .where(PendingOrder.id == order_id)
+            .values(triggered_at_tick=tick)
+        )
+
+    async def get_triggered_but_pending_for_target(self, target_id: str) -> list[PendingOrder]:
+        result = await self._session.execute(
+            select(PendingOrder).where(
+                PendingOrder.target_id == target_id,
+                PendingOrder.status == "pending",
+                PendingOrder.triggered_at_tick.isnot(None),
+            )
+        )
+        return result.scalars().all()
+
+    async def reset_triggered(self, order_id: UUID) -> None:
+        await self._session.execute(
+            update(PendingOrder)
+            .where(PendingOrder.id == order_id)
+            .values(triggered_at_tick=None)
+        )
+
     async def bulk_cancel_by_target(
         self, target_id: str, reason: str, skip_active_routes: bool = True
     ) -> list[str]:

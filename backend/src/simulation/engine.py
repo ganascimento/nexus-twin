@@ -17,6 +17,8 @@ from src.repositories.truck import TruckRepository
 from src.simulation.events import (
     ENGINE_BLOCKED_DEGRADED_TRUCK,
     LOW_STOCK_TRIGGER,
+    ORDER_RECEIVED,
+    RESUPPLY_REQUESTED,
     STOCK_TRIGGER_FACTORY,
     STOCK_TRIGGER_WAREHOUSE,
     route_event,
@@ -214,6 +216,7 @@ class SimulationEngine:
 
         async with self._session_factory() as session:
             event_repo = EventRepository(session)
+            order_repo = OrderRepository(session)
 
             for store in world_state.stores:
                 triggered = False
@@ -266,6 +269,27 @@ class SimulationEngine:
                             )
                             triggered = True
 
+            for warehouse in world_state.warehouses:
+                untriggered_orders = await order_repo.get_untriggered_for_target(warehouse.id)
+                for order in untriggered_orders:
+                    order_payload = {
+                        "order_id": str(order.id),
+                        "requester_type": order.requester_type,
+                        "requester_id": order.requester_id,
+                        "material_id": order.material_id,
+                        "quantity_tons": order.quantity_tons,
+                    }
+                    triggers.append(
+                        (
+                            self._make_agent_callable("warehouse", warehouse.id),
+                            trigger_event(
+                                "warehouse", warehouse.id, ORDER_RECEIVED, self._tick,
+                                payload=order_payload,
+                            ),
+                        )
+                    )
+                    await order_repo.mark_triggered(order.id, self._tick)
+
             for factory in world_state.factories:
                 triggered = False
                 for material_id, product in factory.products.items():
@@ -280,6 +304,34 @@ class SimulationEngine:
                                 )
                             )
                             triggered = True
+
+            for factory in world_state.factories:
+                untriggered_orders = await order_repo.get_untriggered_for_target(factory.id)
+                for order in untriggered_orders:
+                    order_payload = {
+                        "order_id": str(order.id),
+                        "requester_type": order.requester_type,
+                        "requester_id": order.requester_id,
+                        "material_id": order.material_id,
+                        "quantity_tons": order.quantity_tons,
+                    }
+                    triggers.append(
+                        (
+                            self._make_agent_callable("factory", factory.id),
+                            trigger_event(
+                                "factory", factory.id, RESUPPLY_REQUESTED, self._tick,
+                                payload=order_payload,
+                            ),
+                        )
+                    )
+                    await order_repo.mark_triggered(order.id, self._tick)
+
+            for factory in world_state.factories:
+                triggered_orders = await order_repo.get_triggered_but_pending_for_target(factory.id)
+                for order in triggered_orders:
+                    factory_product = factory.products.get(order.material_id)
+                    if factory_product and factory_product.stock >= order.quantity_tons:
+                        await order_repo.reset_triggered(order.id)
 
             for truck in world_state.trucks:
                 active_events = await event_repo.get_active_for_entity(
@@ -297,6 +349,8 @@ class SimulationEngine:
                             ),
                         )
                     )
+
+            await session.commit()
 
         return triggers
 

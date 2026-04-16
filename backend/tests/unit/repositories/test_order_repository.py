@@ -114,3 +114,76 @@ async def test_bulk_cancel_by_requester_cancels_all_from_requester():
     )
 
     session.execute.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Feature 25 — order-based trigger methods
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_untriggered_for_target_returns_pending_only():
+    pending_order = _make_order(requester_id="s1")
+    session = AsyncMock()
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [pending_order]
+    session.execute.return_value = result
+
+    repo = OrderRepository(session)
+    orders = await repo.get_untriggered_for_target("w1")
+
+    assert len(orders) == 1
+    assert orders[0].status == "pending"
+    session.execute.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_untriggered_for_target_excludes_triggered():
+    session = AsyncMock()
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = []
+    session.execute.return_value = result
+
+    repo = OrderRepository(session)
+    orders = await repo.get_untriggered_for_target("w1")
+
+    assert orders == []
+
+
+@pytest.mark.asyncio
+async def test_mark_triggered_sets_tick():
+    order_id = uuid.uuid4()
+    session = AsyncMock()
+    session.execute.return_value = MagicMock()
+
+    repo = OrderRepository(session)
+    await repo.mark_triggered(order_id, 10)
+
+    session.execute.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_triggered_but_pending_for_target():
+    order = _make_order(requester_id="s1")
+    object.__setattr__(order, "triggered_at_tick", 5)
+    session = AsyncMock()
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [order]
+    session.execute.return_value = result
+
+    repo = OrderRepository(session)
+    orders = await repo.get_triggered_but_pending_for_target("factory_01")
+
+    assert len(orders) == 1
+
+
+@pytest.mark.asyncio
+async def test_reset_triggered():
+    order_id = uuid.uuid4()
+    session = AsyncMock()
+    session.execute.return_value = MagicMock()
+
+    repo = OrderRepository(session)
+    await repo.reset_triggered(order_id)
+
+    session.execute.assert_called_once()

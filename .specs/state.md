@@ -34,7 +34,7 @@
 | 22  | integration_tests_simulation | done    | 22 integration tests: lifecycle, physics, triggers, multi-tick; exposed RuntimeError vs ConflictError gap in tick-while-running                                            |
 | 23  | integration_tests_agent_e2e  | done    | 9 E2E tests; wired agents to engine; added ORM relationships; fixed store agent region; engine resilient to agent errors                                                   |
 | 24  | decision_effect_processor    | done | Connects agent decisions to world state mutations — creates PendingOrders, updates order status, dispatches trucks                                                         |
-| 25  | order_based_triggers         | pending | Engine detects new PendingOrders → fires `order_received` (warehouse) and `resupply_requested` (factory) triggers                                                          |
+| 25  | order_based_triggers         | done | Engine detects new PendingOrders → fires `order_received` (warehouse) and `resupply_requested` (factory) triggers                                                          |
 | 26  | delivery_completion          | pending | Truck arrival → stock transfer to destination, order marked delivered, events for destination and truck agents                                                             |
 | 27  | maintenance_transport_retry  | pending | Maintenance countdown (trucks return to idle) + transport retry sweep (orphaned confirmed orders get trucks)                                                               |
 | 28  | resilience_and_chaos         | pending | 4 gaps: retry backoff after rejection, breakdown roll mid-route, chaos events for factories/stores, reroute on route_blocked |
@@ -100,3 +100,4 @@
 - [23_integration_tests_agent_e2e] ORM models Factory/Warehouse/Store não tinham `relationship()` — agentes crashavam ao acessar `.products`, `.stocks`. Corrigido: adicionado `relationship(..., lazy="selectin")` em todos.
 - [23_integration_tests_agent_e2e] StoreAgent acessava `store.region` (coluna removida em F21). Corrigido: removido do entity dict, `list_by_region` substituído por `get_all`.
 - [23_integration_tests_agent_e2e] `_dispatch_agent` não capturava exceções — agent crash podia matar o engine. Corrigido: try/except com log.
+- [25_order_based_triggers] `trigger_event()` estendida com `payload: dict | None = None` (backwards-compatible) — chamadas existentes sem payload continuam funcionando. Alembic migration omitida — schema em fase de evolução rápida; `triggered_at_tick` adicionado diretamente ao model.

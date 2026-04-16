@@ -15,6 +15,8 @@ ENGINE_BLOCKED_DEGRADED_TRUCK = "engine_blocked_degraded_truck"
 LOW_STOCK_TRIGGER = "low_stock_trigger"
 STOCK_TRIGGER_WAREHOUSE = "stock_trigger_warehouse"
 STOCK_TRIGGER_FACTORY = "stock_trigger_factory"
+ORDER_RECEIVED = "order_received"
+RESUPPLY_REQUESTED = "resupply_requested"
 
 TRUCK_AGENT_EVENT_TYPES = frozenset(
     {ROUTE_BLOCKED, TRUCK_ARRIVED, TRUCK_BREAKDOWN, NEW_ORDER, CONTRACT_PROPOSAL}
@@ -45,14 +47,18 @@ def route_event(
 
 
 def trigger_event(
-    entity_type: str, entity_id: str, event_type: str, tick: int
+    entity_type: str,
+    entity_id: str,
+    event_type: str,
+    tick: int,
+    payload: dict | None = None,
 ) -> SimulationEvent:
     return SimulationEvent(
         event_type=event_type,
         source="engine",
         entity_type=entity_type,
         entity_id=entity_id,
-        payload={},
+        payload=payload or {},
         tick=tick,
     )
 
