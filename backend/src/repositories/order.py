@@ -4,6 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import PendingOrder
+from src.database.models.route import Route
 
 ACTIVE_STATUSES = ("pending", "confirmed")
 
@@ -152,3 +153,22 @@ class OrderRepository:
             )
             .values(status="cancelled", cancellation_reason=reason)
         )
+
+    async def get_confirmed_without_route(self, limit: int = 10) -> list[PendingOrder]:
+        from sqlalchemy.orm import aliased
+        route_alias = aliased(Route)
+        stmt = (
+            select(PendingOrder)
+            .outerjoin(
+                route_alias,
+                (route_alias.order_id == PendingOrder.id) & (route_alias.status == "active"),
+            )
+            .where(
+                PendingOrder.status == "confirmed",
+                route_alias.id.is_(None),
+            )
+            .order_by(PendingOrder.age_ticks.desc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalars().all()

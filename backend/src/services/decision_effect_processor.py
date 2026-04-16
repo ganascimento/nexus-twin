@@ -252,7 +252,7 @@ class DecisionEffectProcessor:
         )
 
     async def _handle_request_maintenance(self, entity_id, payload, tick):
-        await self._truck_service.schedule_maintenance(entity_id)
+        await self._truck_service.schedule_maintenance(entity_id, current_tick=tick)
 
     # --- Helpers ---
 

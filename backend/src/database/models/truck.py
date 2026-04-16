@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, String, Float, Integer, ForeignKey, TIMESTAMP
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import func
 from . import Base
@@ -19,6 +19,8 @@ class Truck(Base):
     status = Column(String(20), nullable=False)
     factory_id = Column(String(50), ForeignKey("factories.id"), nullable=True)
     cargo = Column(JSONB, nullable=True)
+    maintenance_start_tick = Column(Integer, nullable=True, default=None)
+    maintenance_duration_ticks = Column(Integer, nullable=True, default=None)
     active_route_id = Column(
         UUID(as_uuid=True),
         ForeignKey("routes.id", use_alter=True, name="fk_truck_active_route"),

@@ -37,3 +37,5 @@ class Truck(BaseModel):
     factory_id: Optional[str] = None
     cargo: Optional[TruckCargo] = None
     active_route: Optional[TruckRoute] = None
+    maintenance_start_tick: Optional[int] = None
+    maintenance_duration_ticks: Optional[int] = None

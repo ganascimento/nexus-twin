@@ -101,6 +101,27 @@ class SimulationEngine:
             event_repo = EventRepository(session)
 
             for truck in world_state.trucks:
+                if truck.status != TruckStatus.MAINTENANCE:
+                    continue
+                if truck.maintenance_start_tick is None:
+                    await truck_repo.update_status(truck.id, "idle")
+                    await truck_repo.clear_maintenance_info(truck.id)
+                    logger.warning("Truck {} in maintenance without tracking, forcing idle", truck.id)
+                    continue
+                if self._tick - truck.maintenance_start_tick >= truck.maintenance_duration_ticks:
+                    await truck_repo.update_status(truck.id, "idle")
+                    await truck_repo.clear_maintenance_info(truck.id)
+                    await event_repo.create({
+                        "event_type": "truck_maintenance_completed",
+                        "source": "engine",
+                        "entity_type": "truck",
+                        "entity_id": truck.id,
+                        "payload": {},
+                        "status": "active",
+                        "tick_start": self._tick,
+                    })
+
+            for truck in world_state.trucks:
                 if truck.status != TruckStatus.IN_TRANSIT:
                     continue
 
@@ -285,6 +306,7 @@ class SimulationEngine:
         async with self._session_factory() as session:
             event_repo = EventRepository(session)
             order_repo = OrderRepository(session)
+            truck_repo = TruckRepository(session)
 
             for store in world_state.stores:
                 triggered = False
@@ -458,6 +480,57 @@ class SimulationEngine:
                     )
                     await event_repo.resolve(evt.id, self._tick)
 
+            orphaned_orders = await order_repo.get_confirmed_without_route(limit=10)
+            for order in orphaned_orders:
+                truck = None
+                event_type = None
+
+                if order.target_type == "factory":
+                    truck = await truck_repo.get_idle_by_factory(order.target_id)
+                    if truck:
+                        event_type = "new_order"
+
+                if truck is None:
+                    target_entity = self._find_entity_in_world_state(
+                        world_state, order.target_type, order.target_id
+                    )
+                    if target_entity:
+                        truck = await truck_repo.get_nearest_idle_third_party(
+                            target_entity.lat, target_entity.lng
+                        )
+                    else:
+                        truck = await truck_repo.get_nearest_idle_third_party(0.0, 0.0)
+                    if truck:
+                        event_type = "contract_proposal"
+
+                if truck is None:
+                    continue
+
+                existing = await event_repo.get_active_for_entity("truck", truck.id)
+                if any(
+                    (e.payload or {}).get("order_id") == str(order.id)
+                    for e in existing
+                ):
+                    continue
+
+                await event_repo.create({
+                    "event_type": event_type,
+                    "source": "engine",
+                    "entity_type": "truck",
+                    "entity_id": truck.id,
+                    "payload": {
+                        "order_id": str(order.id),
+                        "material_id": order.material_id,
+                        "quantity_tons": order.quantity_tons,
+                        "target_type": order.target_type,
+                        "target_id": order.target_id,
+                        "requester_type": order.requester_type,
+                        "requester_id": order.requester_id,
+                    },
+                    "status": "active",
+                    "tick_start": self._tick,
+                })
+
             await session.commit()
 
         return triggers
@@ -478,6 +551,21 @@ class SimulationEngine:
     ) -> int:
         distance_km = calculate_distance_km(from_lat, from_lng, to_lat, to_lng)
         return calculate_eta_ticks(distance_km)
+
+    def _find_entity_in_world_state(self, world_state, entity_type, entity_id):
+        if entity_type == "warehouse":
+            for wh in world_state.warehouses:
+                if wh.id == entity_id:
+                    return wh
+        elif entity_type == "factory":
+            for f in world_state.factories:
+                if f.id == entity_id:
+                    return f
+        elif entity_type == "store":
+            for s in world_state.stores:
+                if s.id == entity_id:
+                    return s
+        return None
 
     async def _dispatch_agent(self, agent_fn, event) -> None:
         async with self._semaphore:

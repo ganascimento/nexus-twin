@@ -36,7 +36,7 @@
 | 24  | decision_effect_processor    | done | Connects agent decisions to world state mutations — creates PendingOrders, updates order status, dispatches trucks                                                         |
 | 25  | order_based_triggers         | done | Engine detects new PendingOrders → fires `order_received` (warehouse) and `resupply_requested` (factory) triggers                                                          |
 | 26  | delivery_completion          | done | Truck arrival → stock transfer to destination, order marked delivered, events for destination and truck agents                                                             |
-| 27  | maintenance_transport_retry  | pending | Maintenance countdown (trucks return to idle) + transport retry sweep (orphaned confirmed orders get trucks)                                                               |
+| 27  | maintenance_transport_retry  | done | Maintenance countdown (trucks return to idle) + transport retry sweep (orphaned confirmed orders get trucks)                                                               |
 | 28  | resilience_and_chaos         | pending | 4 gaps: retry backoff after rejection, breakdown roll mid-route, chaos events for factories/stores, reroute on route_blocked |
 | 29  | integration_tests_full_cycle | pending | Heavy E2E integration tests: complete Store→Warehouse→Factory→Truck→Delivery cycle, maintenance, retry, breakdown, chaos |
 
@@ -104,3 +104,5 @@
 - [26_delivery_completion] `Route.order_id` (FK para `pending_orders.id`, nullable) adicionado para vincular rota a ordem — permite marcar ordem como `delivered` quando caminhão chega. `DecisionEffectProcessor._handle_accept_contract` passa `order_id` via `route_data` dict.
 - [26_delivery_completion] Engine `_apply_physics` cargo handling usa `isinstance(cargo, dict)` com fallback para `getattr()` — WorldState entrega `TruckCargo` (Pydantic), ORM entrega dict (JSONB). Ambos são suportados.
 - [26_delivery_completion] `_evaluate_triggers` agora resolve eventos (`event_repo.resolve`) imediatamente após criar o trigger para warehouses, stores e trucks — evita re-trigger a cada tick. O agente recebe o payload completo no `SimulationEvent`.
+- [27_maintenance_transport_retry] `TruckService.schedule_maintenance` recebe `current_tick` (default=0 para backwards-compat) e grava `maintenance_start_tick` + `maintenance_duration_ticks` no truck. Engine conta ticks e transiciona para idle quando duration expira.
+- [27_maintenance_transport_retry] Transport retry usa `get_confirmed_without_route` com LEFT JOIN Route — ordens confirmadas sem rota ativa são reavaliadas a cada tick (limit=10). Deduplicação por `order_id` no payload de eventos existentes.

@@ -79,13 +79,14 @@ class TruckService:
             "truck_route_interrupted", {"truck_id": truck_id, "reason": reason}
         )
 
-    async def schedule_maintenance(self, truck_id: str) -> None:
+    async def schedule_maintenance(self, truck_id: str, current_tick: int = 0) -> None:
         truck = await self.get_truck(truck_id)
         if truck.status == TruckStatus.IN_TRANSIT.value:
             raise ConflictError(f"Truck '{truck_id}' is in transit, cannot schedule maintenance")
         duration = calculate_maintenance_ticks(truck.degradation)
         await self._repo.update_status(truck_id, TruckStatus.MAINTENANCE.value)
         await self._repo.update_degradation(truck_id, 0.0, 0.0)
+        await self._repo.set_maintenance_info(truck_id, current_tick, duration)
         await self._publisher.publish_event(
             "truck_maintenance_started",
             {"truck_id": truck_id, "duration_ticks": duration},

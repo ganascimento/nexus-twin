@@ -515,7 +515,7 @@ async def test_request_maintenance_schedules(processor, mock_truck_service):
         "truck", "truck_01", "request_maintenance", payload, current_tick=5
     )
 
-    mock_truck_service.schedule_maintenance.assert_called_once_with("truck_01")
+    mock_truck_service.schedule_maintenance.assert_called_once_with("truck_01", current_tick=5)
 
 
 # --- Tests: refuse_contract (TruckAgent) ---

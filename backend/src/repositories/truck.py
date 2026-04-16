@@ -1,4 +1,4 @@
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import Truck
@@ -73,3 +73,44 @@ class TruckRepository:
         await self._session.execute(
             update(Truck).where(Truck.id == id).values(active_route_id=route_id)
         )
+
+    async def set_maintenance_info(self, truck_id: str, start_tick: int, duration_ticks: int) -> None:
+        await self._session.execute(
+            update(Truck)
+            .where(Truck.id == truck_id)
+            .values(maintenance_start_tick=start_tick, maintenance_duration_ticks=duration_ticks)
+        )
+
+    async def clear_maintenance_info(self, truck_id: str) -> None:
+        await self._session.execute(
+            update(Truck)
+            .where(Truck.id == truck_id)
+            .values(maintenance_start_tick=None, maintenance_duration_ticks=None)
+        )
+
+    async def get_idle_by_factory(self, factory_id: str) -> Truck | None:
+        result = await self._session.execute(
+            select(Truck).where(
+                Truck.factory_id == factory_id,
+                Truck.status == "idle",
+            ).limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_nearest_idle_third_party(self, lat: float, lng: float) -> Truck | None:
+        distance = func.sqrt(
+            func.pow(Truck.current_lat - lat, 2) + func.pow(Truck.current_lng - lng, 2)
+        )
+        result = await self._session.execute(
+            select(Truck)
+            .where(Truck.truck_type == "terceiro", Truck.status == "idle")
+            .order_by(distance)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_all_in_maintenance(self) -> list[Truck]:
+        result = await self._session.execute(
+            select(Truck).where(Truck.status == "maintenance")
+        )
+        return result.scalars().all()
