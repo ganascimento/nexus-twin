@@ -521,7 +521,18 @@ Tick N  (10s real = 1h simulada)
   ├── guardrails/warehouse.py valida a decisão
   │       └── Rejeita se quantity_tons > capacidade disponível
   │
-  └── Decisão válida → repositories/agent_decision.py persiste → Evento publicado no Redis → Dashboard
+  ├── Decisão válida → repositories/agent_decision.py persiste
+  │
+  ├── DecisionEffectProcessor.process() — aplica efeitos colaterais na mesma transação:
+  │       ├── order_replenishment → cria PendingOrder (store→warehouse) com deduplicação
+  │       ├── confirm_order → reserva estoque + despacha caminhão terceiro (warehouse→store)
+  │       ├── request_resupply → cria PendingOrder (warehouse→factory) com deduplicação
+  │       ├── send_stock → cria PendingOrder (factory→warehouse) + despacha caminhão
+  │       ├── accept_contract → Valhalla route + assign_route (caminhão → in_transit)
+  │       ├── request_maintenance → schedule_maintenance (caminhão → maintenance)
+  │       └── hold → no-op
+  │
+  └── Evento publicado no Redis → Dashboard
 ```
 
 ---

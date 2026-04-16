@@ -164,6 +164,7 @@ agent_decisions ──< (entity_id polimórfico)                                
 | `path`         | `JSONB`       | NOT NULL    | `[[lng, lat], ...]` — waypoints da rota Valhalla |
 | `timestamps`   | `JSONB`       | NOT NULL    | `[ms, ...]` — timestamp em ms para cada waypoint |
 | `eta_ticks`    | `INTEGER`     | NOT NULL    | Ticks estimados para conclusão                   |
+| `order_id`     | `UUID`        | FK→pending_orders, NULL | PendingOrder associada a esta rota (para marcar `delivered` na chegada) |
 | `status`       | `VARCHAR(20)` | NOT NULL    | `active` / `completed` / `interrupted`           |
 | `started_at`   | `TIMESTAMPTZ` | NOT NULL    |                                                  |
 | `completed_at` | `TIMESTAMPTZ` | NULL        |                                                  |
@@ -220,6 +221,7 @@ agent_decisions ──< (entity_id polimórfico)                                
 | `rejection_reason`    | `TEXT`        | NULL                |                                                                    |
 | `cancellation_reason` | `TEXT`        | NULL                | Motivo do cancelamento — ex: `target_deleted`, `requester_deleted` |
 | `eta_ticks`           | `INTEGER`     | NULL                | ETA confirmado pelo target                                         |
+| `triggered_at_tick`   | `INTEGER`     | NULL                | Tick em que o engine disparou trigger para esta ordem; `NULL` = ainda não triggereada |
 | `created_at`          | `TIMESTAMPTZ` | NOT NULL            |                                                                    |
 | `updated_at`          | `TIMESTAMPTZ` | NOT NULL            |                                                                    |
 
@@ -660,6 +662,25 @@ Gerencia o ciclo de vida dos `pending_orders`.
 
 ---
 
+### `DecisionEffectProcessor` — `services/decision_effect_processor.py`
+
+Traduz decisões de agentes em efeitos colaterais no mundo. Chamado pelo nó `act` do grafo LangGraph após persistir a decisão, dentro da mesma transação.
+
+| Método                                                                                          | Descrição                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `process(entity_type, entity_id, action, payload, current_tick) → None`                          | Roteia para o handler correto; `hold` = no-op; handler desconhecido = log warning; exceções no handler são logadas mas não propagadas                                                                       |
+| `_handle_order_replenishment(entity_id, payload, tick)`                                          | Cria PendingOrder (store→warehouse) com deduplicação via `has_active_order`                                                                                                                                  |
+| `_handle_confirm_order(entity_id, payload, tick)`                                                | Chama `WarehouseService.confirm_order()` + despacha caminhão terceiro para entrega warehouse→store                                                                                                           |
+| `_handle_reject_order(entity_id, payload, tick)`                                                 | Chama `WarehouseService.reject_order()`                                                                                                                                                                      |
+| `_handle_request_resupply(entity_id, payload, tick)`                                             | Cria PendingOrder (warehouse→factory) com deduplicação                                                                                                                                                       |
+| `_handle_start_production(entity_id, payload, tick)`                                             | Atualiza `production_rate_current` da fábrica                                                                                                                                                                |
+| `_handle_send_stock(entity_id, payload, tick)`                                                   | Cria PendingOrder (factory→warehouse) + despacha caminhão proprietário (ou terceiro se indisponível)                                                                                                         |
+| `_handle_accept_contract(entity_id, payload, tick)`                                              | Computa rota (Valhalla) + cria Route (com `order_id`) + `TruckService.assign_route()`                                                                                                                       |
+| `_handle_refuse_contract(entity_id, payload, tick)`                                              | Publica evento `contract_proposal` para próximo caminhão disponível                                                                                                                                          |
+| `_handle_request_maintenance(entity_id, payload, tick)`                                          | Chama `TruckService.schedule_maintenance()`                                                                                                                                                                  |
+
+---
+
 ### `RouteService` — `services/route.py`
 
 Integração com Valhalla para cálculo de rotas reais.
@@ -773,6 +794,11 @@ Cada repository vive em `backend/src/repositories/<entidade>.py`.
 | `get_pending_for_requester(requester_id: str) → list[PendingOrder]`                                | Pedidos emitidos por uma entidade                                                                                                                                       |
 | `increment_all_age_ticks() → None`                                                                 | Bulk update — incrementa `age_ticks` de todos os ativos                                                                                                                 |
 | `update_status(id: UUID, status: str, **kwargs) → PendingOrder`                                    | Atualiza status + campos opcionais (eta, rejection_reason, cancellation_reason)                                                                                         |
+| `has_active_order(requester_id, material_id, target_id=None) → bool`                               | Verifica se existe PendingOrder ativa (pending/confirmed) para deduplicação                                                                                             |
+| `get_untriggered_for_target(target_id: str) → list[PendingOrder]`                                  | Ordens com `status=pending` e `triggered_at_tick IS NULL` — para triggers do engine                                                                                     |
+| `mark_triggered(order_id: UUID, tick: int) → None`                                                 | Seta `triggered_at_tick` para evitar re-trigger                                                                                                                          |
+| `get_triggered_but_pending_for_target(target_id: str) → list[PendingOrder]`                        | Ordens triggered mas ainda pending — para re-trigger de fábricas com estoque suficiente                                                                                  |
+| `reset_triggered(order_id: UUID) → None`                                                           | Reseta `triggered_at_tick = NULL` — permite re-trigger no próximo tick                                                                                                   |
 | `bulk_cancel_by_target(target_id: str, reason: str, skip_active_routes: bool = True) → list[UUID]` | Cancela em bulk pedidos de um target; se `skip_active_routes=True`, ignora pedidos onde já há caminhão em rota (entrega prossegue); retorna IDs dos requesters afetados |
 | `bulk_cancel_by_requester(requester_id: str, reason: str) → None`                                  | Cancela em bulk pedidos emitidos por uma entidade removida                                                                                                              |
 

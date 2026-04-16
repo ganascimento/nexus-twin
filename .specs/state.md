@@ -8,31 +8,37 @@
 
 ## Feature Progress
 
-| #   | Feature                      | Status  | Notes                                                                                                |
-| --- | ---------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
-| 01  | project_setup                | done    |                                                                                                      |
-| 02  | db_models                    | done    | enums.py adicionado retroativamente — Python Enum + String column                                    |
-| 03  | db_migrations_seed           | done    |                                                                                                      |
-| 04  | repositories                 | done    |                                                                                                      |
-| 05  | world_state                  | done    |                                                                                                      |
-| 06  | services_entities            | done    |                                                                                                      |
-| 07  | simulation_engine            | done    |                                                                                                      |
-| 08  | agent_base                   | done    |                                                                                                      |
-| 09  | agents                       | done    |                                                                                                      |
-| 10  | guardrails                   | done    |                                                                                                      |
-| 11  | agent_tools                  | done    |                                                                                                      |
-| 12  | services_chaos               | done    |                                                                                                      |
-| 13  | api_rest                     | done    |                                                                                                      |
-| 14  | api_websocket                | done    |                                                                                                      |
-| 15  | celery_workers               | done    |                                                                                                      |
-| 16  | frontend_base                | done    |                                                                                                      |
-| 17  | frontend_map                 | done    |                                                                                                      |
-| 18  | frontend_hud                 | done    |                                                                                                      |
-| 19  | backend_review_fixes         | done    | Code review fixes: agent state machine, services, API, engine, physics                               |
-| 20  | critical_bug_fixes           | done    | 11 critical bugs fixed: WorldState crash, API endpoints, agent system, engine commit, route creation |
+| #   | Feature                      | Status  | Notes                                                                                                                                                                      |
+| --- | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | project_setup                | done    |                                                                                                                                                                            |
+| 02  | db_models                    | done    | enums.py adicionado retroativamente — Python Enum + String column                                                                                                          |
+| 03  | db_migrations_seed           | done    |                                                                                                                                                                            |
+| 04  | repositories                 | done    |                                                                                                                                                                            |
+| 05  | world_state                  | done    |                                                                                                                                                                            |
+| 06  | services_entities            | done    |                                                                                                                                                                            |
+| 07  | simulation_engine            | done    |                                                                                                                                                                            |
+| 08  | agent_base                   | done    |                                                                                                                                                                            |
+| 09  | agents                       | done    |                                                                                                                                                                            |
+| 10  | guardrails                   | done    |                                                                                                                                                                            |
+| 11  | agent_tools                  | done    |                                                                                                                                                                            |
+| 12  | services_chaos               | done    |                                                                                                                                                                            |
+| 13  | api_rest                     | done    |                                                                                                                                                                            |
+| 14  | api_websocket                | done    |                                                                                                                                                                            |
+| 15  | celery_workers               | done    |                                                                                                                                                                            |
+| 16  | frontend_base                | done    |                                                                                                                                                                            |
+| 17  | frontend_map                 | done    |                                                                                                                                                                            |
+| 18  | frontend_hud                 | done    |                                                                                                                                                                            |
+| 19  | backend_review_fixes         | done    | Code review fixes: agent state machine, services, API, engine, physics                                                                                                     |
+| 20  | critical_bug_fixes           | done    | 11 critical bugs fixed: WorldState crash, API endpoints, agent system, engine commit, route creation                                                                       |
 | 21  | integration_tests_crud       | done    | 57 integration tests; exposed+fixed 6 bugs: missing ID generation, delete without NotFound check, Truck field mapping, Store region mismatch, FK cascade on factory delete |
-| 22  | integration_tests_simulation | done    | 22 integration tests: lifecycle, physics, triggers, multi-tick; exposed RuntimeError vs ConflictError gap in tick-while-running |
-| 23  | integration_tests_agent_e2e  | done    | 9 E2E tests; wired agents to engine; added ORM relationships; fixed store agent region; engine resilient to agent errors |
+| 22  | integration_tests_simulation | done    | 22 integration tests: lifecycle, physics, triggers, multi-tick; exposed RuntimeError vs ConflictError gap in tick-while-running                                            |
+| 23  | integration_tests_agent_e2e  | done    | 9 E2E tests; wired agents to engine; added ORM relationships; fixed store agent region; engine resilient to agent errors                                                   |
+| 24  | decision_effect_processor    | pending | Connects agent decisions to world state mutations — creates PendingOrders, updates order status, dispatches trucks                                                         |
+| 25  | order_based_triggers         | pending | Engine detects new PendingOrders → fires `order_received` (warehouse) and `resupply_requested` (factory) triggers                                                          |
+| 26  | delivery_completion          | pending | Truck arrival → stock transfer to destination, order marked delivered, events for destination and truck agents                                                             |
+| 27  | maintenance_transport_retry  | pending | Maintenance countdown (trucks return to idle) + transport retry sweep (orphaned confirmed orders get trucks)                                                               |
+| 28  | resilience_and_chaos         | pending | 4 gaps: retry backoff after rejection, breakdown roll mid-route, chaos events for factories/stores, reroute on route_blocked |
+| 29  | integration_tests_full_cycle | pending | Heavy E2E integration tests: complete Store→Warehouse→Factory→Truck→Delivery cycle, maintenance, retry, breakdown, chaos |
 
 ---
 
