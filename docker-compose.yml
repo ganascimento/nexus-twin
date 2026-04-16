@@ -1,4 +1,21 @@
+# =============================================================================
+# Nexus Twin — Docker Compose (modo desenvolvimento local)
+#
+# Backend e Frontend rodam localmente (fora do Docker).
+# Apenas infraestrutura (banco, cache, tiles, roteamento) sobe via compose.
+#
+# Uso:
+#   docker compose up -d
+#   cd backend  && uvicorn src.main:app --reload --port 8000
+#   cd frontend && npm run dev
+# =============================================================================
+
 services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL + PostGIS — banco principal do mundo (estado persistente)
+  # Acesso local: postgresql://nexus:nexus@localhost:5432/nexus_twin
+  # ---------------------------------------------------------------------------
   postgres:
     image: postgis/postgis:15-3.4
     ports:
@@ -16,6 +33,10 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Redis — pub/sub (world_state, agent_decisions, events) + broker Celery
+  # Acesso local: redis://localhost:6379
+  # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     ports:
@@ -26,18 +47,25 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Martin — servidor de vector tiles (PMTiles gerados pelo Planetiler)
+  # Serve tiles para o MapLibre no frontend: http://localhost:3001
+  # Tambem expoe tabelas PostGIS como vector tiles dinamicos
+  # ---------------------------------------------------------------------------
   martin:
     image: ghcr.io/maplibre/martin
     ports:
       - "3001:3000"
+    command: /data/sudeste.pmtiles --listen-addresses 0.0.0.0:3000
     volumes:
       - ./geo/data:/data
-    environment:
-      DATABASE_URL: postgresql://nexus:nexus@postgres:5432/nexus_twin
-    depends_on:
-      postgres:
-        condition: service_healthy
+    restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # Valhalla — engine de roteamento (rotas reais por rodovias do OSM)
+  # API local: POST http://localhost:8002/route { costing: "truck" }
+  # Tiles pre-compilados em geo/data/valhalla_tiles/ (use_tiles_ignore_pbf=True)
+  # ---------------------------------------------------------------------------
   valhalla:
     image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
     ports:
@@ -47,31 +75,29 @@ services:
     environment:
       use_tiles_ignore_pbf: "True"
 
-  backend:
-    build:
-      context: ./backend
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
+  # ---------------------------------------------------------------------------
+  # Backend e Frontend rodam localmente — comentados no compose
+  # ---------------------------------------------------------------------------
+  # backend:
+  #   build:
+  #     context: ./backend
+  #   ports:
+  #     - "8000:8000"
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
 
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "5173:80"
-    depends_on:
-      - backend
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #   ports:
+  #     - "5173:80"
+  #   depends_on:
+  #     - backend
 
 volumes:
   pgdata:

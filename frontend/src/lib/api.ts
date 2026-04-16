@@ -19,6 +19,89 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return text ? (JSON.parse(text) as T) : (undefined as unknown as T);
 }
 
+// --- World Snapshot ---
+
+import type {
+  WorldStatePayload,
+  FactorySnapshot,
+  WarehouseSnapshot,
+  StoreSnapshot,
+  TruckSnapshot,
+} from "@/types/world";
+
+interface RawSnapshot {
+  tick: number;
+  simulated_timestamp: string;
+  factories: Array<Record<string, unknown>>;
+  warehouses: Array<Record<string, unknown>>;
+  stores: Array<Record<string, unknown>>;
+  trucks: TruckSnapshot[];
+}
+
+function dictToArray<T>(dict: Record<string, T>, keyName: string): (T & Record<string, string>)[] {
+  return Object.entries(dict).map(([key, value]) => ({
+    ...value,
+    [keyName]: key,
+  }));
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function normalizeWorldState(raw: any): WorldStatePayload {
+  return transformSnapshot(raw as RawSnapshot);
+}
+
+function transformSnapshot(raw: RawSnapshot): WorldStatePayload {
+  const factories: FactorySnapshot[] = raw.factories.map((f) => ({
+    id: f.id as string,
+    name: f.name as string,
+    lat: f.lat as number,
+    lng: f.lng as number,
+    status: f.status as FactorySnapshot["status"],
+    products: Array.isArray(f.products)
+      ? f.products
+      : dictToArray(f.products as Record<string, unknown>, "material_id"),
+  }));
+
+  const warehouses: WarehouseSnapshot[] = raw.warehouses.map((w) => ({
+    id: w.id as string,
+    name: w.name as string,
+    lat: w.lat as number,
+    lng: w.lng as number,
+    region: w.region as string,
+    capacity_total: w.capacity_total as number,
+    status: w.status as WarehouseSnapshot["status"],
+    stocks: Array.isArray(w.stocks)
+      ? w.stocks
+      : dictToArray(w.stocks as Record<string, unknown>, "material_id"),
+  }));
+
+  const stores: StoreSnapshot[] = raw.stores.map((s) => ({
+    id: s.id as string,
+    name: s.name as string,
+    lat: s.lat as number,
+    lng: s.lng as number,
+    status: s.status as StoreSnapshot["status"],
+    stocks: Array.isArray(s.stocks)
+      ? s.stocks
+      : dictToArray(s.stocks as Record<string, unknown>, "material_id"),
+  }));
+
+  return {
+    tick: raw.tick,
+    simulated_timestamp: raw.simulated_timestamp,
+    factories,
+    warehouses,
+    stores,
+    trucks: raw.trucks,
+    active_events: [],
+    active_routes: [],
+  };
+}
+
+export function fetchWorldSnapshot(): Promise<WorldStatePayload> {
+  return apiFetch<RawSnapshot>("/world/snapshot").then(transformSnapshot);
+}
+
 // --- Simulation ---
 
 export interface SimulationStatus {

@@ -85,7 +85,7 @@ class WorldStateService:
                 )
             )
             partners = [
-                FactoryPartnerWarehouseEntity(warehouse_id=pw.warehouse_id)
+                FactoryPartnerWarehouseEntity(warehouse_id=pw.warehouse_id, priority=pw.priority)
                 for pw in partner_result.scalars().all()
             ]
 

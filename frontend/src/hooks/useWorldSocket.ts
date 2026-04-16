@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useWorldStore } from "../store/worldStore";
-import type { WSMessage, WorldStatePayload, AgentDecisionPayload, EventPayload } from "../types/world";
+import { fetchWorldSnapshot, normalizeWorldState } from "../lib/api";
+import type { WSMessage, AgentDecisionPayload, EventPayload } from "../types/world";
 
 const PING_INTERVAL_MS = 30000;
 const INITIAL_RECONNECT_DELAY_MS = 1000;
@@ -8,6 +9,7 @@ const MAX_RECONNECT_DELAY_MS = 30000;
 
 export function useWorldSocket(): void {
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY_MS);
+  const snapshotLoadedRef = useRef(false);
 
   useEffect(() => {
     let isCleanedUp = false;
@@ -41,6 +43,15 @@ export function useWorldSocket(): void {
         useWorldStore.getState().setConnected(true);
         reconnectDelayRef.current = INITIAL_RECONNECT_DELAY_MS;
 
+        if (!snapshotLoadedRef.current) {
+          fetchWorldSnapshot()
+            .then((snapshot) => {
+              useWorldStore.getState().setWorldState(snapshot);
+              snapshotLoadedRef.current = true;
+            })
+            .catch((err) => console.error("Failed to load initial snapshot:", err));
+        }
+
         pingInterval = setInterval(() => {
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: "ping" }));
@@ -54,7 +65,7 @@ export function useWorldSocket(): void {
 
         switch (message.channel) {
           case "world_state":
-            store.setWorldState(message.payload as WorldStatePayload);
+            store.setWorldState(normalizeWorldState(message.payload));
             break;
           case "agent_decisions":
             store.addDecision(message.payload as AgentDecisionPayload);

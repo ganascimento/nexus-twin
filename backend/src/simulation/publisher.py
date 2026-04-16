@@ -11,6 +11,8 @@ async def publish_world_state(world_state: WorldState, tick: int, redis_client) 
     try:
         payload = world_state.model_dump(mode="json")
         payload["tick"] = tick
+        payload.setdefault("active_events", [])
+        payload.setdefault("active_routes", [])
         await redis_client.publish("nexus:world_state", json.dumps(payload))
     except Exception as exc:
         logger.error(f"Failed to publish world state to Redis: {exc}")

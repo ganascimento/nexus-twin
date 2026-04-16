@@ -33,8 +33,7 @@ from src.world.state import WorldState
 class SimulationEngine:
     DEGRADATION_FACTOR = 1000.0
 
-    def __init__(self, world_state_service, publisher_redis_client, session_factory):
-        self._world_state_service = world_state_service
+    def __init__(self, publisher_redis_client, session_factory):
         self._publisher_redis_client = publisher_redis_client
         self._session_factory = session_factory
         self._running: bool = False
@@ -47,7 +46,12 @@ class SimulationEngine:
     async def start(self) -> None:
         self._running = True
         while self._running:
-            await self.run_tick()
+            try:
+                await self.run_tick()
+            except Exception as exc:
+                logger.error("Engine tick {} failed: {}", self._tick, exc, exc_info=True)
+                self._running = False
+                return
             await asyncio.sleep(self._tick_interval)
 
     def stop(self) -> None:
@@ -60,7 +64,12 @@ class SimulationEngine:
 
     async def run_tick(self) -> None:
         self._tick += 1
-        world_state = await self._world_state_service.load()
+        from src.services.world_state import WorldStateService
+
+        async with self._session_factory() as session:
+            world_state_service = WorldStateService(session)
+            world_state = await world_state_service.load(self._tick)
+
         await self._apply_physics(world_state)
         triggers = await self._evaluate_triggers(world_state)
         for agent_fn, event in triggers:

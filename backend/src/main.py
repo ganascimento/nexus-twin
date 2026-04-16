@@ -3,11 +3,16 @@ import logging
 import os
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-import redis.asyncio as aioredis
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from loguru import logger
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+import redis.asyncio as aioredis  # noqa: E402
+from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from loguru import logger  # noqa: E402
 
 from src.api.routes.chaos import router as chaos_router
 from src.api.routes.decisions import router as decisions_router
@@ -61,15 +66,13 @@ async def lifespan(app: FastAPI):
         redis_subscriber(app.state.redis, app.state.ws_manager)
     )
 
-    from src.database.session import _get_engine, AsyncSessionLocal
+    from src.database import session as db_session
     from src.services.simulation import SimulationService
-    from src.services.world_state import WorldStateService
     from src.simulation.engine import SimulationEngine
 
-    _get_engine()
+    db_session._get_engine()
 
-    world_state_service = WorldStateService(AsyncSessionLocal())
-    engine = SimulationEngine(world_state_service, app.state.redis, AsyncSessionLocal)
+    engine = SimulationEngine(app.state.redis, db_session.AsyncSessionLocal)
     app.state.simulation_service = SimulationService(engine)
 
     yield

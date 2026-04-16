@@ -49,7 +49,7 @@ class SimulationService:
 
     def get_status(self) -> dict:
         return {
-            "running": self._engine._running,
+            "status": "running" if self._engine._running else "stopped",
             "current_tick": self._engine._tick,
             "tick_interval_seconds": self._engine._tick_interval,
         }

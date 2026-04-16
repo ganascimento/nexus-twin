@@ -15,16 +15,16 @@ A fully autonomous supply chain simulation where every entity — factory, wareh
 
 ---
 
-## ✨ Features
+## Features
 
-- 🤖 **Autonomous multi-agent system** — each entity runs a LangGraph `StateGraph` cycle (`perceive → decide → act`) powered by `gpt-4o-mini`, reacting to real supply chain events without human intervention
-- 🗺️ **Real São Paulo road network** — trucks navigate actual OSM highways (Anhanguera, Bandeirantes, Dutra) via self-hosted Valhalla routing; animated live on a WebGL map with deck.gl `TripsLayer`
-- ⚡ **Live simulation ticks** — deterministic physics engine advances the world every 10s (= 1 simulated hour); agent decisions fire-and-forget in the background and stream to the dashboard via WebSocket
-- 🌪️ **Chaos injection** — inject disruptive events (truck strikes, road blocks, machine breakdowns, demand spikes) and watch agents autonomously adapt
-- 🎮 **Game master dashboard** — fullscreen WebGL map with HUD overlays to inspect any entity, manage the world, and monitor the agent decision feed in real time
-- 📦 **Self-hosted geo stack** — Martin tile server + Planetiler PMTiles + Valhalla routing, no paid map API required
+- **Autonomous multi-agent system** — each entity runs a LangGraph `StateGraph` cycle (`perceive > decide > act`) powered by `gpt-4o-mini`, reacting to supply chain events without human intervention
+- **Real Sao Paulo road network** — trucks navigate actual OSM highways (Anhanguera, Bandeirantes, Dutra) via self-hosted Valhalla routing, animated live on a WebGL map with deck.gl `TripsLayer`
+- **Live simulation ticks** — deterministic physics engine advances the world every 10s (= 1 simulated hour); agent decisions fire-and-forget in the background and stream to the dashboard via WebSocket
+- **Chaos injection** — inject disruptive events (truck strikes, road blocks, machine breakdowns, demand spikes) and watch agents autonomously adapt
+- **Game master dashboard** — fullscreen WebGL map with HUD overlays to inspect any entity, manage the world, and monitor the agent decision feed in real time
+- **Self-hosted geo stack** — Martin tile server + Planetiler PMTiles + Valhalla routing, no paid map API required
 
-## 🛠 Tech Stack
+## Tech Stack
 
 | Layer           | Technology                                                      |
 | --------------- | --------------------------------------------------------------- |
@@ -41,158 +41,255 @@ A fully autonomous supply chain simulation where every entity — factory, wareh
 | UI / HUD        | Tailwind CSS + shadcn/ui                                        |
 | Tile server     | Martin (Rust) serving PMTiles                                   |
 | Routing engine  | Valhalla (Docker) — truck-aware routing                         |
-| Tile generation | Planetiler → PMTiles (one-time setup)                           |
+| Tile generation | Planetiler > PMTiles (one-time setup)                           |
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-- Docker 24+
-- Python 3.11+
-- Node 20+
-- OpenAI API key
+- **Docker 24+** and **Docker Compose** — for PostgreSQL, Redis, and the geo stack
+- **Python 3.11+** — backend runtime
+- **Node.js 20+** — frontend dev server
+- **OpenAI API key** — with credit; agents use `gpt-4o-mini` (~$0.15/1M input tokens)
 
-### Geo Data Setup (one-time, ~1 hour)
-
-These large files are not versioned. Generate them once before starting the stack.
-
-**1. Download OSM extract (~800 MB)**
+### 1. Clone and install dependencies
 
 ```bash
-wget https://download.geofabrik.de/south-america/brazil/sudeste-latest.osm.pbf \
-  -O geo/data/sudeste-latest.osm.pbf
+git clone <repo-url>
+cd nexus-twin
 ```
 
-**2. Generate vector tiles with Planetiler (~30 min, output ~2–4 GB)**
-
-```bash
-docker run -v $(pwd)/geo/data:/data ghcr.io/onthegomap/planetiler:latest \
-  --osm-path=/data/sudeste-latest.osm.pbf \
-  --output=/data/sudeste.pmtiles
-```
-
-**3. Build Valhalla routing graph (~20 min)**
-
-```bash
-mkdir -p geo/data/valhalla_tiles
-
-docker run -v $(pwd)/geo/data:/custom_files \
-  ghcr.io/gis-ops/docker-valhalla/valhalla:latest \
-  valhalla_build_tiles -c /custom_files/valhalla.json \
-  /custom_files/sudeste-latest.osm.pbf
-```
-
-### Installation
-
-```bash
-# Configure environment
-cp .env.example .env
-# Edit .env and set OPENAI_API_KEY (required)
-
-# Start all services
-docker compose up
-```
-
-To start only infrastructure (postgres + redis):
-
-```bash
-docker compose up postgres redis
-```
-
-### Environment Variables
-
-| Variable                | Description                                       | Required |
-| ----------------------- | ------------------------------------------------- | -------- |
-| `OPENAI_API_KEY`        | OpenAI API key for agent LLM calls                | ✅       |
-| `OPENAI_MODEL`          | Model name (default: `gpt-4o-mini`)               | ⚪       |
-| `DATABASE_URL`          | PostgreSQL connection string (asyncpg + PostGIS)  | ✅       |
-| `REDIS_URL`             | Redis connection URL (Celery + Pub/Sub)           | ✅       |
-| `API_HOST` / `API_PORT` | FastAPI server bind address                       | ⚪       |
-| `VITE_API_URL`          | Backend REST base URL for the frontend            | ⚪       |
-| `VITE_TILE_SERVER_URL`  | Martin tile server URL for MapLibre               | ⚪       |
-| `TICK_INTERVAL_SECONDS` | Simulation tick interval in seconds (min 10)      | ⚪       |
-| `MAX_AGENT_WORKERS`     | Max concurrent OpenAI calls (`asyncio.Semaphore`) | ⚪       |
-| `VALHALLA_URL`          | Valhalla routing engine base URL                  | ⚪       |
-| `OSM_DATA_PATH`         | Path to the `.osm.pbf` extract                    | ⚪       |
-| `PMTILES_PATH`          | Path to the generated `.pmtiles` file             | ⚪       |
-
-## 💻 Local Development
-
-**Backend**
+**Backend:**
 
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-
-python -m uvicorn src.main:app --reload --port 8000
 ```
 
-**Database**
+**Frontend:**
+
+```bash
+cd frontend
+npm install
+```
+
+### 2. Configure environment
+
+The `.env` file lives inside `backend/`:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Open `backend/.env` and set your OpenAI API key:
+
+```dotenv
+OPENAI_API_KEY=sk-your-key-here
+```
+
+The other values default to `localhost` and work out of the box for local development.
+
+### 3. Start infrastructure
+
+All services (PostgreSQL, Redis, Martin tile server, Valhalla routing) are managed by Docker Compose. Backend and frontend run locally.
+
+```bash
+docker compose up -d
+```
+
+Wait for services to be healthy:
+
+```bash
+docker compose ps
+```
+
+> Martin and Valhalla require geo data to be generated first (see [Geo Data Setup](#geo-data-setup-one-time) below). Without it, the simulation still works but the map will be empty and routing unavailable.
+
+### 4. Create and seed the database
+
+From the `backend/` directory, with the venv activated:
 
 ```bash
 cd backend
 
-# Apply all migrations (create tables)
+# Apply all migrations (creates tables + PostGIS extensions)
 alembic upgrade head
 
-# Seed the world with default data (3 factories, 3 warehouses, 5 stores, 6 trucks)
-python -c "
-import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from src.database.seed import seed_default_world
-import os
+# Seed the default world (3 materials, 3 factories, 3 warehouses, 5 stores, 6 trucks)
+python scripts/seed.py
+```
 
-async def run():
-    engine = create_async_engine(os.environ['DATABASE_URL'])
-    async with AsyncSession(engine) as session:
-        await seed_default_world(session)
-        await session.commit()
-    await engine.dispose()
+### 5. Run the application
 
-asyncio.run(run())
-"
+Open two terminals:
 
-# Roll back all migrations (drop all tables)
+**Terminal 1 — Backend:**
+
+```bash
+cd backend
+source .venv/bin/activate
+uvicorn src.main:app --reload --port 8000
+```
+
+**Terminal 2 — Frontend:**
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open your browser:
+
+| Service  | URL                        |
+| -------- | -------------------------- |
+| Frontend | http://localhost:5173      |
+| API docs | http://localhost:8000/docs |
+
+---
+
+## Geo Data Setup (one-time)
+
+The map and routing use real OpenStreetMap data from Sao Paulo state. These files are large and not versioned in git — you generate them once locally.
+
+All files go into `geo/data/`. Run all commands from the project root.
+
+### Step 1 — Download OSM extract (~800 MB)
+
+```bash
+wget https://download.geofabrik.de/south-america/brazil/sudeste-latest.osm.pbf \
+  -O geo/data/sudeste-latest.osm.pbf
+```
+
+### Step 2 — Generate vector tiles with Planetiler (~30 min, output ~2-4 GB)
+
+These tiles are what the Martin tile server serves to MapLibre for rendering the base map.
+
+Planetiler needs auxiliary datasets besides the OSM extract. Download them first to avoid connection issues during processing:
+
+```bash
+mkdir -p geo/data/sources
+
+wget -O geo/data/sources/natural_earth_vector.sqlite.zip \
+  https://naciscdn.org/naturalearth/packages/natural_earth_vector.sqlite.zip
+
+wget -O geo/data/sources/water-polygons-split-3857.zip \
+  https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip
+
+wget -O geo/data/sources/lake_centerline.shp.zip \
+  https://osmdata.openstreetmap.de/download/lake-centerline.shp.zip
+```
+
+Then run Planetiler (it will find the pre-downloaded files and skip to processing):
+
+```bash
+docker run --rm -v $(pwd)/geo/data:/data ghcr.io/onthegomap/planetiler:latest \
+  --osm-path=/data/sudeste-latest.osm.pbf \
+  --output=/data/sudeste.pmtiles
+```
+
+### Step 3 — Build Valhalla routing graph (~20-30 min)
+
+Valhalla uses this graph to calculate real truck routes along OSM highways. Copy the PBF into the Valhalla directory and run the container — it detects the file and builds the routing graph automatically on startup.
+
+```bash
+mkdir -p geo/data/valhalla_tiles
+
+cp geo/data/sudeste-latest.osm.pbf geo/data/valhalla_tiles/
+
+docker run --rm -v $(pwd)/geo/data/valhalla_tiles:/custom_files \
+  -e use_tiles_ignore_pbf=False \
+  -e build_elevation=False \
+  -e build_admins=False \
+  ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+
+# After the build finishes, remove the copied PBF (only the generated tiles are needed)
+rm geo/data/valhalla_tiles/sudeste-latest.osm.pbf
+```
+
+After all steps, your `geo/data/` directory should look like this:
+
+```
+geo/data/
+├── sudeste-latest.osm.pbf    # ~800 MB — downloaded from Geofabrik
+├── sudeste.pmtiles            # ~2-4 GB — generated by Planetiler
+└── valhalla_tiles/            # ~1-2 GB — generated by Valhalla
+```
+
+Restart the infrastructure to pick up the new geo data:
+
+```bash
+docker compose restart martin valhalla
+```
+
+---
+
+## Environment Variables
+
+| Variable                | Description                                       | Required |
+| ----------------------- | ------------------------------------------------- | -------- |
+| `OPENAI_API_KEY`        | OpenAI API key for agent LLM calls                | Yes      |
+| `OPENAI_MODEL`          | Model name (default: `gpt-4o-mini`)               | No       |
+| `DATABASE_URL`          | PostgreSQL connection string (asyncpg + PostGIS)  | Yes      |
+| `REDIS_URL`             | Redis connection URL (Celery + Pub/Sub)           | Yes      |
+| `API_HOST` / `API_PORT` | FastAPI server bind address                       | No       |
+| `VITE_API_URL`          | Backend REST base URL for the frontend            | No       |
+| `VITE_TILE_SERVER_URL`  | Martin tile server URL for MapLibre               | No       |
+| `TICK_INTERVAL_SECONDS` | Simulation tick interval in seconds (min 10)      | No       |
+| `MAX_AGENT_WORKERS`     | Max concurrent OpenAI calls (`asyncio.Semaphore`) | No       |
+| `VALHALLA_URL`          | Valhalla routing engine base URL                  | No       |
+
+## Database Commands
+
+All commands from `backend/` with the venv activated:
+
+```bash
+# Apply all migrations
+alembic upgrade head
+
+# Roll back all migrations
 alembic downgrade base
 
 # Generate a new migration after changing ORM models
 alembic revision --autogenerate -m "describe_your_change"
 
-# Check if models are in sync with the current migration head
-alembic check
-
-# Show current migration version applied to the database
+# Check current migration version
 alembic current
 
 # Show full migration history
 alembic history --verbose
 ```
 
-**Frontend**
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-## 🧪 Testing
+## Testing
 
 ```bash
 cd backend
+pip install -e ".[test]"
 pytest
 ```
 
-## 📦 Build
+Integration tests use `testcontainers` to spin up an ephemeral PostgreSQL — no external database needed.
+
+## Build
 
 ```bash
 cd frontend
 npm run build
 ```
 
-## 📁 Project Structure
+## Service Ports
+
+| Service              | Port | Notes                |
+| -------------------- | ---- | -------------------- |
+| Frontend (Vite)      | 5173 | Dev server with HMR  |
+| Backend (FastAPI)    | 8000 | REST API + WebSocket |
+| PostgreSQL + PostGIS | 5432 | Docker container     |
+| Redis                | 6379 | Docker container     |
+| Martin (tile server) | 3001 | Requires geo data    |
+| Valhalla (routing)   | 8002 | Requires geo data    |
+
+## Project Structure
 
 ```
 nexus-twin/
@@ -219,17 +316,6 @@ nexus-twin/
 └── docker-compose.yml
 ```
 
-## 🌐 Service Ports
-
-| Service              | Port |
-| -------------------- | ---- |
-| Backend (FastAPI)    | 8000 |
-| Frontend (Vite)      | 5173 |
-| PostgreSQL           | 5432 |
-| Redis                | 6379 |
-| Martin (tile server) | 3001 |
-| Valhalla (routing)   | 8002 |
-
-## 📄 License
+## License
 
 MIT

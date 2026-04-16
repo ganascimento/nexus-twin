@@ -80,7 +80,8 @@ export function createNodesLayer(
     id: "nodes-layer",
     data,
     getPosition: (d) => d.position,
-    getRadius: (d) => Math.max(500, Math.sqrt(d.totalStock) * 200),
+    getRadius: (d) =>
+      d.entityType === "factory" ? 2000 : d.entityType === "warehouse" ? 1500 : 1200,
     getFillColor: (d) => (d.isAlert ? ALERT_COLOR : d.color),
     radiusUnits: "meters",
     pickable: true,

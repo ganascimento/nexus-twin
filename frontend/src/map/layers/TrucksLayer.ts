@@ -91,15 +91,15 @@ export function createTrucksLayers(
         id: "trucks-static-layer",
         data: staticData,
         getPosition: (d) => d.position,
-        getRadius: 400,
+        getRadius: 8,
         getFillColor: (d) =>
           d.truckType === "proprietario"
             ? TRUCK_PROPRIETARIO_COLOR
             : TRUCK_TERCEIRO_COLOR,
-        getLineColor: (d) => getDegradationColor(d.degradation),
+        getLineColor: [255, 255, 255],
         lineWidthMinPixels: 2,
         stroked: true,
-        radiusUnits: "meters",
+        radiusUnits: "pixels",
         pickable: true,
       }),
     );
