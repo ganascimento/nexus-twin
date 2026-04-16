@@ -27,6 +27,20 @@ class OrderRepository:
         )
         return result.scalar_one_or_none()
 
+    async def has_active_order(
+        self, requester_id: str, material_id: str, target_id: str | None = None
+    ) -> bool:
+        stmt = select(PendingOrder.id).where(
+            PendingOrder.requester_id == requester_id,
+            PendingOrder.material_id == material_id,
+            PendingOrder.status.in_(ACTIVE_STATUSES),
+        )
+        if target_id is not None:
+            stmt = stmt.where(PendingOrder.target_id == target_id)
+        stmt = stmt.limit(1)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
     async def get_pending_for_target(self, target_id: str) -> list[PendingOrder]:
         result = await self._session.execute(
             select(PendingOrder).where(

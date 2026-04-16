@@ -134,9 +134,7 @@ def _make_perceive_node(db_session):
             "{world_state_summary}",
             _format_world_state_summary(state["world_state"]),
         )
-        prompt = prompt.replace(
-            "{decision_history}", _format_decision_history(history)
-        )
+        prompt = prompt.replace("{decision_history}", _format_decision_history(history))
 
         entity = state["world_state"].get("entity", {})
         if state["entity_type"] == "truck":
@@ -216,7 +214,9 @@ def _make_decide_node(llm, tools):
     return decide_node
 
 
-def _make_act_node_for_graph(decision_schema_map, db_session, publisher_instance):
+def _make_act_node_for_graph(
+    decision_schema_map, db_session, publisher_instance, decision_effect_processor=None
+):
     async def _act_node(state: AgentState) -> dict:
         schema_map = decision_schema_map
         session = db_session
@@ -242,6 +242,16 @@ def _make_act_node_for_graph(decision_schema_map, db_session, publisher_instance
                     "payload": raw.get("payload", {}),
                 }
             )
+
+            if decision_effect_processor is not None:
+                await decision_effect_processor.process(
+                    entity_type,
+                    state["entity_id"],
+                    raw.get("action"),
+                    raw.get("payload", {}),
+                    state["current_tick"],
+                )
+
             await publish_agent_decision(
                 {
                     "entity_id": state["entity_id"],
@@ -264,13 +274,14 @@ def build_agent_graph(
     decision_schema_map: dict,
     db_session,
     publisher_instance,
+    decision_effect_processor=None,
 ):
     llm = ChatOpenAI(model=OPENAI_MODEL)
 
     perceive_fn = _make_perceive_node(db_session)
     decide_node = _make_decide_node(llm, tools)
     act_node_fn = _make_act_node_for_graph(
-        decision_schema_map, db_session, publisher_instance
+        decision_schema_map, db_session, publisher_instance, decision_effect_processor
     )
 
     graph = StateGraph(AgentState)
