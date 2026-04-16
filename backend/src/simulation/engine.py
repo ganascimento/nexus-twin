@@ -14,6 +14,7 @@ from src.repositories.order import OrderRepository
 from src.repositories.route import RouteRepository
 from src.repositories.store import StoreRepository
 from src.repositories.truck import TruckRepository
+from src.repositories.warehouse import WarehouseRepository
 from src.simulation.events import (
     ENGINE_BLOCKED_DEGRADED_TRUCK,
     LOW_STOCK_TRIGGER,
@@ -96,6 +97,8 @@ class SimulationEngine:
             factory_repo = FactoryRepository(session)
             order_repo = OrderRepository(session)
             route_repo = RouteRepository(session)
+            warehouse_repo = WarehouseRepository(session)
+            event_repo = EventRepository(session)
 
             for truck in world_state.trucks:
                 if truck.status != TruckStatus.IN_TRANSIT:
@@ -120,11 +123,76 @@ class SimulationEngine:
                 await route_repo.update_eta_ticks(route.id, new_eta)
 
                 if new_eta == 0:
+                    cargo = truck.cargo
+                    if cargo is not None:
+                        if isinstance(cargo, dict):
+                            material_id = cargo.get("material_id")
+                            quantity_tons = cargo.get("quantity_tons", 0.0)
+                        else:
+                            material_id = getattr(cargo, "material_id", None)
+                            quantity_tons = getattr(cargo, "quantity_tons", 0.0)
+                        if material_id and quantity_tons > 0:
+                            if route.dest_type == "warehouse":
+                                await warehouse_repo.update_stock(
+                                    route.dest_id, material_id, quantity_tons
+                                )
+                            elif route.dest_type == "store":
+                                await store_repo.update_stock(
+                                    route.dest_id, material_id, quantity_tons
+                                )
+                            else:
+                                logger.warning(
+                                    "Truck {} arrived at unsupported dest_type '{}', skipping stock transfer",
+                                    truck.id, route.dest_type,
+                                )
+
+                    if route.order_id is not None:
+                        await order_repo.update_status(route.order_id, "delivered")
+
+                    if route.dest_type in ("warehouse", "store"):
+                        delivery_payload = {}
+                        if cargo is not None:
+                            if isinstance(cargo, dict):
+                                delivery_payload = {
+                                    "material_id": cargo.get("material_id"),
+                                    "quantity_tons": cargo.get("quantity_tons"),
+                                    "from_truck_id": truck.id,
+                                }
+                            else:
+                                delivery_payload = {
+                                    "material_id": getattr(cargo, "material_id", None),
+                                    "quantity_tons": getattr(cargo, "quantity_tons", None),
+                                    "from_truck_id": truck.id,
+                                }
+                        await event_repo.create({
+                            "event_type": "resupply_delivered",
+                            "entity_type": route.dest_type,
+                            "entity_id": route.dest_id,
+                            "source": "engine",
+                            "status": "active",
+                            "tick_start": self._tick,
+                            "payload": delivery_payload,
+                        })
+
+                    await event_repo.create({
+                        "event_type": "truck_arrived",
+                        "entity_type": "truck",
+                        "entity_id": truck.id,
+                        "source": "engine",
+                        "status": "active",
+                        "tick_start": self._tick,
+                        "payload": {
+                            "route_id": str(route.id),
+                            "dest_type": route.dest_type,
+                            "dest_id": route.dest_id,
+                        },
+                    })
+
                     if route.path and route.timestamps:
                         final_lng, final_lat = route.path[-1]
                         await truck_repo.update_position(truck.id, final_lat, final_lng)
-                    await truck_repo.update_status(truck.id, "idle")
                     await truck_repo.set_cargo(truck.id, None)
+                    await truck_repo.update_status(truck.id, "idle")
                     await truck_repo.set_active_route(truck.id, None)
                     await route_repo.update_status(route.id, "completed")
                 else:
@@ -333,22 +401,62 @@ class SimulationEngine:
                     if factory_product and factory_product.stock >= order.quantity_tons:
                         await order_repo.reset_triggered(order.id)
 
+            for warehouse in world_state.warehouses:
+                active_events = await event_repo.get_active_for_entity(
+                    "warehouse", warehouse.id
+                )
+                for evt in active_events:
+                    triggers.append(
+                        (
+                            self._make_agent_callable("warehouse", warehouse.id),
+                            trigger_event(
+                                "warehouse",
+                                warehouse.id,
+                                evt.event_type,
+                                self._tick,
+                                payload=evt.payload or {},
+                            ),
+                        )
+                    )
+                    await event_repo.resolve(evt.id, self._tick)
+
+            for store in world_state.stores:
+                active_events = await event_repo.get_active_for_entity(
+                    "store", store.id
+                )
+                for evt in active_events:
+                    triggers.append(
+                        (
+                            self._make_agent_callable("store", store.id),
+                            trigger_event(
+                                "store",
+                                store.id,
+                                evt.event_type,
+                                self._tick,
+                                payload=evt.payload or {},
+                            ),
+                        )
+                    )
+                    await event_repo.resolve(evt.id, self._tick)
+
             for truck in world_state.trucks:
                 active_events = await event_repo.get_active_for_entity(
                     "truck", truck.id
                 )
-                if active_events:
+                for evt in active_events:
                     triggers.append(
                         (
                             self._make_agent_callable("truck", truck.id),
                             trigger_event(
                                 "truck",
                                 truck.id,
-                                active_events[0].event_type,
+                                evt.event_type,
                                 self._tick,
+                                payload=evt.payload or {},
                             ),
                         )
                     )
+                    await event_repo.resolve(evt.id, self._tick)
 
             await session.commit()
 

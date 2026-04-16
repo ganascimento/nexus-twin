@@ -50,7 +50,7 @@ class RouteService:
     ):
         from datetime import datetime, timezone
 
-        return await self._repo.create({
+        create_data = {
             "truck_id": truck_id,
             "origin_type": origin_type,
             "origin_id": origin_id,
@@ -61,7 +61,10 @@ class RouteService:
             "eta_ticks": route_data["eta_ticks"],
             "status": "active",
             "started_at": datetime.now(timezone.utc),
-        })
+        }
+        if "order_id" in route_data:
+            create_data["order_id"] = route_data["order_id"]
+        return await self._repo.create(create_data)
 
     async def _call_valhalla(
         self, from_lat: float, from_lng: float, to_lat: float, to_lng: float

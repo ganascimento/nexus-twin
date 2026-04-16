@@ -204,6 +204,7 @@ class DecisionEffectProcessor:
             dest_coords[1],
             tick,
         )
+        route_data["order_id"] = str(order.id)
 
         route = await self._route_service.create_route(
             entity_id,

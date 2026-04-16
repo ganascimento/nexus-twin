@@ -35,7 +35,7 @@
 | 23  | integration_tests_agent_e2e  | done    | 9 E2E tests; wired agents to engine; added ORM relationships; fixed store agent region; engine resilient to agent errors                                                   |
 | 24  | decision_effect_processor    | done | Connects agent decisions to world state mutations — creates PendingOrders, updates order status, dispatches trucks                                                         |
 | 25  | order_based_triggers         | done | Engine detects new PendingOrders → fires `order_received` (warehouse) and `resupply_requested` (factory) triggers                                                          |
-| 26  | delivery_completion          | pending | Truck arrival → stock transfer to destination, order marked delivered, events for destination and truck agents                                                             |
+| 26  | delivery_completion          | done | Truck arrival → stock transfer to destination, order marked delivered, events for destination and truck agents                                                             |
 | 27  | maintenance_transport_retry  | pending | Maintenance countdown (trucks return to idle) + transport retry sweep (orphaned confirmed orders get trucks)                                                               |
 | 28  | resilience_and_chaos         | pending | 4 gaps: retry backoff after rejection, breakdown roll mid-route, chaos events for factories/stores, reroute on route_blocked |
 | 29  | integration_tests_full_cycle | pending | Heavy E2E integration tests: complete Store→Warehouse→Factory→Truck→Delivery cycle, maintenance, retry, breakdown, chaos |
@@ -101,3 +101,6 @@
 - [23_integration_tests_agent_e2e] StoreAgent acessava `store.region` (coluna removida em F21). Corrigido: removido do entity dict, `list_by_region` substituído por `get_all`.
 - [23_integration_tests_agent_e2e] `_dispatch_agent` não capturava exceções — agent crash podia matar o engine. Corrigido: try/except com log.
 - [25_order_based_triggers] `trigger_event()` estendida com `payload: dict | None = None` (backwards-compatible) — chamadas existentes sem payload continuam funcionando. Alembic migration omitida — schema em fase de evolução rápida; `triggered_at_tick` adicionado diretamente ao model.
+- [26_delivery_completion] `Route.order_id` (FK para `pending_orders.id`, nullable) adicionado para vincular rota a ordem — permite marcar ordem como `delivered` quando caminhão chega. `DecisionEffectProcessor._handle_accept_contract` passa `order_id` via `route_data` dict.
+- [26_delivery_completion] Engine `_apply_physics` cargo handling usa `isinstance(cargo, dict)` com fallback para `getattr()` — WorldState entrega `TruckCargo` (Pydantic), ORM entrega dict (JSONB). Ambos são suportados.
+- [26_delivery_completion] `_evaluate_triggers` agora resolve eventos (`event_repo.resolve`) imediatamente após criar o trigger para warehouses, stores e trucks — evita re-trigger a cada tick. O agente recebe o payload completo no `SimulationEvent`.

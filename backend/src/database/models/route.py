@@ -17,5 +17,6 @@ class Route(Base):
     timestamps = Column(JSONB, nullable=False)
     eta_ticks = Column(Integer, nullable=False)
     status = Column(String(20), nullable=False)
+    order_id = Column(UUID(as_uuid=True), ForeignKey("pending_orders.id"), nullable=True)
     started_at = Column(TIMESTAMP(timezone=True), nullable=False)
     completed_at = Column(TIMESTAMP(timezone=True), nullable=True)

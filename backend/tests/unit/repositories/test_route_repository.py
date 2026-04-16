@@ -50,3 +50,60 @@ async def test_update_status_does_not_set_completed_at_when_interrupted():
     await repo.update_status(route_id=route_id, status="interrupted")
 
     session.execute.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Feature 26 — Route with order_id
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_route_create_with_order_id():
+    order_id = uuid.uuid4()
+    session = AsyncMock()
+
+    repo = RouteRepository(session)
+    data = {
+        "truck_id": "truck_01",
+        "origin_type": "factory",
+        "origin_id": "factory_01",
+        "dest_type": "warehouse",
+        "dest_id": "wh_01",
+        "path": [[-46.6, -23.5], [-45.8, -22.8]],
+        "timestamps": [0, 4],
+        "eta_ticks": 3,
+        "status": "active",
+        "started_at": datetime.now(timezone.utc),
+        "order_id": order_id,
+    }
+
+    await repo.create(data)
+
+    session.add.assert_called_once()
+    added_route = session.add.call_args[0][0]
+    assert added_route.order_id == order_id
+
+
+@pytest.mark.asyncio
+async def test_route_create_without_order_id():
+    session = AsyncMock()
+
+    repo = RouteRepository(session)
+    data = {
+        "truck_id": "truck_01",
+        "origin_type": "factory",
+        "origin_id": "factory_01",
+        "dest_type": "warehouse",
+        "dest_id": "wh_01",
+        "path": [[-46.6, -23.5], [-45.8, -22.8]],
+        "timestamps": [0, 4],
+        "eta_ticks": 3,
+        "status": "active",
+        "started_at": datetime.now(timezone.utc),
+    }
+
+    await repo.create(data)
+
+    session.add.assert_called_once()
+    added_route = session.add.call_args[0][0]
+    assert added_route.order_id is None

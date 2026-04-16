@@ -17,6 +17,7 @@ STOCK_TRIGGER_WAREHOUSE = "stock_trigger_warehouse"
 STOCK_TRIGGER_FACTORY = "stock_trigger_factory"
 ORDER_RECEIVED = "order_received"
 RESUPPLY_REQUESTED = "resupply_requested"
+RESUPPLY_DELIVERED = "resupply_delivered"
 
 TRUCK_AGENT_EVENT_TYPES = frozenset(
     {ROUTE_BLOCKED, TRUCK_ARRIVED, TRUCK_BREAKDOWN, NEW_ORDER, CONTRACT_PROPOSAL}
