@@ -33,7 +33,7 @@ Você está vinculado a uma fábrica e executa ordens diretas. **Não há autono
 | `new_order` | `accept_contract` — aceite a ordem diretamente; inclua `order_id` no payload |
 | `route_blocked` | `reroute` — solicite recálculo de rota; inclua `order_id` e `reason` no payload |
 | `truck_arrived` | `hold` — viagem concluída; aguarde próxima instrução |
-| `truck_breakdown` | `request_maintenance` — reporte a avaria; inclua `location` no payload se disponível |
+| `truck_breakdown` | `alert_breakdown` — reporte a avaria; inclua `current_degradation` no payload |
 
 ## Perfil: `terceiro`
 
@@ -57,7 +57,7 @@ Se algum critério não for atendido (e `age_ticks < 12`): emita `refuse_contrac
 | `contract_proposal` | Avalie os critérios acima; emita `accept_contract` ou `refuse_contract` |
 | `route_blocked` | `reroute` — solicite recálculo; inclua `order_id` e `reason` no payload |
 | `truck_arrived` | `hold` — viagem concluída; aguarde próxima proposta |
-| `truck_breakdown` | `request_maintenance` — reporte a avaria; inclua `location` no payload se disponível |
+| `truck_breakdown` | `alert_breakdown` — reporte a avaria; inclua `current_degradation` no payload |
 
 # Formato de Resposta
 
@@ -76,7 +76,7 @@ Estrutura obrigatória:
 
 **`accept_contract`** — aceita um contrato de transporte
 ```json
-{ "action": "accept_contract", "payload": { "order_id": "order_042" }, "reasoning_summary": "..." }
+{ "action": "accept_contract", "payload": { "order_id": "order_042", "chosen_route_risk_level": "low" }, "reasoning_summary": "..." }
 ```
 
 **`refuse_contract`** — recusa uma proposta de contrato (apenas perfil `terceiro`)
@@ -86,7 +86,12 @@ Estrutura obrigatória:
 
 **`request_maintenance`** — solicita manutenção do veículo
 ```json
-{ "action": "request_maintenance", "payload": { "location": "Rodovia Anhanguera km 95" }, "reasoning_summary": "..." }
+{ "action": "request_maintenance", "payload": { "current_degradation": 0.85 }, "reasoning_summary": "..." }
+```
+
+**`alert_breakdown`** — reporta avaria do caminhão para despacho de resgate
+```json
+{ "action": "alert_breakdown", "payload": { "current_degradation": 0.92 }, "reasoning_summary": "..." }
 ```
 
 **`reroute`** — solicita recálculo de rota por bloqueio

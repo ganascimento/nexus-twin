@@ -89,6 +89,7 @@ class StoreAgent:
             truck_repo=truck_repo,
             warehouse_repo=warehouse_repo,
             store_repo=store_repo,
+            route_repo=route_repo,
         )
 
     async def run_cycle(self, trigger) -> None:

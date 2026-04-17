@@ -33,6 +33,15 @@ class RouteRepository:
             update(Route).where(Route.id == route_id).values(eta_ticks=eta_ticks)
         )
 
+    async def update_route_data(
+        self, route_id: UUID, path: list, timestamps: list, eta_ticks: int
+    ) -> None:
+        await self._session.execute(
+            update(Route)
+            .where(Route.id == route_id)
+            .values(path=path, timestamps=timestamps, eta_ticks=eta_ticks)
+        )
+
     async def update_status(
         self, route_id: UUID, status: str, completed_at: datetime | None = None
     ) -> None:

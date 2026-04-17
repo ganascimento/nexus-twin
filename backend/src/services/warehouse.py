@@ -58,7 +58,7 @@ class WarehouseService:
             order_id, status="confirmed", eta_ticks=eta_ticks
         )
 
-    async def reject_order(self, order_id, reason: str):
+    async def reject_order(self, order_id, reason: str, retry_after_ticks: int | None = None):
         order = await self._order_repo.get_by_id(order_id)
         if order is None:
             raise NotFoundError(f"Order '{order_id}' not found")
@@ -66,8 +66,11 @@ class WarehouseService:
             await self._repo.release_reserved(
                 order.target_id, order.material_id, order.quantity_tons
             )
+        kwargs = {"rejection_reason": reason}
+        if retry_after_ticks is not None:
+            kwargs["retry_after_tick"] = (order.age_ticks or 0) + retry_after_ticks
         return await self._order_repo.update_status(
-            order_id, status="rejected", rejection_reason=reason
+            order_id, status="rejected", **kwargs
         )
 
     async def adjust_stock(self, id: str, material_id: str, delta: float) -> None:

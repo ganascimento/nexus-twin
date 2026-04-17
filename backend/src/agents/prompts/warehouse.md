@@ -28,7 +28,7 @@ O engine projetou que o estoque de um ou mais produtos vai cruzar o nível míni
   - Calcule quantos ticks o estoque atual dura: `ticks_remaining = stock[material_id] / demand_rate[material_id]`
   - Se `ticks_remaining < lead_time_ticks * 1.5`: o estoque não cobre o tempo de reposição com margem de segurança — emita `request_resupply`.
   - Escolha a fábrica parceira com maior prioridade (menor distância ou histórico de menor lead time).
-  - Indique `material_id`, `quantity_tons` (suficiente para cobrir `lead_time_ticks * 2` de demanda) e `from_factory` no payload.
+  - Indique `material_id`, `quantity_tons` (suficiente para cobrir `lead_time_ticks * 2` de demanda) e `from_factory_id` no payload.
 - Se todos os produtos estiverem com estoque saudável: emita `hold`.
 
 ## Gatilho: `order_received`
@@ -65,17 +65,17 @@ Estrutura obrigatória:
 
 **`request_resupply`** — solicita reposição a uma fábrica parceira
 ```json
-{ "action": "request_resupply", "payload": { "material_id": "mat_001", "quantity_tons": 80, "from_factory": "factory_01" }, "reasoning_summary": "..." }
+{ "action": "request_resupply", "payload": { "material_id": "mat_001", "quantity_tons": 80, "from_factory_id": "factory_01" }, "reasoning_summary": "..." }
 ```
 
 **`confirm_order`** — confirma pedido de reposição de uma loja
 ```json
-{ "action": "confirm_order", "payload": { "order_id": "order_007", "eta_ticks": 3 }, "reasoning_summary": "..." }
+{ "action": "confirm_order", "payload": { "order_id": "order_007", "quantity_tons": 50, "eta_ticks": 3 }, "reasoning_summary": "..." }
 ```
 
 **`reject_order`** — rejeita pedido de reposição de uma loja
 ```json
-{ "action": "reject_order", "payload": { "order_id": "order_007", "reason": "Estoque insuficiente para atender o pedido sem comprometer o nível mínimo." }, "reasoning_summary": "..." }
+{ "action": "reject_order", "payload": { "order_id": "order_007", "reason": "Estoque insuficiente para atender o pedido sem comprometer o nível mínimo.", "retry_after_ticks": 6 }, "reasoning_summary": "..." }
 ```
 
 **`hold`** — nenhuma ação necessária neste tick

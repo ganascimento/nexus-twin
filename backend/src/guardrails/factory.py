@@ -30,12 +30,16 @@ class SendStockPayload(BaseModel):
         return v
 
 
+class StopProductionPayload(BaseModel):
+    material_id: str
+
+
 class FactoryDecision(AgentDecisionBase):
     action: Literal[
         "start_production", "reduce_production", "stop_production",
         "send_stock", "request_truck", "hold"
     ]
-    payload: StartProductionPayload | SendStockPayload | None = None
+    payload: StartProductionPayload | SendStockPayload | StopProductionPayload | None = None
 
     @model_validator(mode="after")
     def payload_required_for_actions(self):

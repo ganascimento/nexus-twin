@@ -85,6 +85,15 @@ class TestFactoryDecision:
         )
         assert decision.payload is None
 
+    def test_stop_production_with_material_id_payload(self):
+        decision = FactoryDecision(
+            action="stop_production",
+            reasoning_summary="Machine breakdown",
+            payload={"material_id": "cimento"},
+        )
+        assert decision.payload is not None
+        assert decision.payload.material_id == "cimento"
+
     def test_request_truck_without_payload(self):
         decision = FactoryDecision(
             action="request_truck",

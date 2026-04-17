@@ -27,7 +27,7 @@ O engine identificou que o estoque de um ou mais produtos está próximo de nív
 - Para cada produto em `factory_products`:
   - Se o estoque atual for **menor que 50% da capacidade máxima**: emita `start_production` para esse produto.
   - Se o estoque atual for **maior que 90% da capacidade máxima**: emita `hold` — não há necessidade de produzir no momento.
-  - Se o estoque atual for **maior que 70% da capacidade máxima** e houver um pedido pendente de um armazém parceiro para esse produto: emita `send_stock` com `quantity_tons` e `to_warehouse`.
+  - Se o estoque atual for **maior que 70% da capacidade máxima** e houver um pedido pendente de um armazém parceiro para esse produto: emita `send_stock` com `quantity_tons` e `destination_warehouse_id`.
 - Se múltiplos produtos precisarem de ação, priorize o produto com menor proporção estoque/capacidade.
 
 ## Gatilho: `resupply_requested`
@@ -35,7 +35,7 @@ O engine identificou que o estoque de um ou mais produtos está próximo de nív
 Um armazém parceiro solicitou reposição de estoque.
 
 - Verifique o estoque disponível do produto solicitado em `pending_orders`.
-- Se o estoque for **suficiente** para atender o pedido: emita `send_stock` com `quantity_tons` igual à quantidade solicitada e `to_warehouse` com o ID do armazém solicitante.
+- Se o estoque for **suficiente** para atender o pedido: emita `send_stock` com `quantity_tons` igual à quantidade solicitada e `destination_warehouse_id` com o ID do armazém solicitante.
 - Se o estoque for **insuficiente**: emita `start_production` para o produto solicitado antes de despachar — indique no `reasoning_summary` que o despacho ocorrerá após a conclusão da produção.
 
 ## Gatilho: `machine_breakdown`
@@ -43,7 +43,7 @@ Um armazém parceiro solicitou reposição de estoque.
 Uma máquina da fábrica sofreu avaria.
 
 - Emita `stop_production` imediatamente.
-- Inclua no payload o campo `affected_product_id` com o ID do produto afetado pela avaria.
+- Inclua no payload o campo `material_id` com o ID do produto afetado pela avaria.
 - Indique no `reasoning_summary` a razão da parada e o impacto esperado no fornecimento.
 
 # Formato de Resposta
@@ -68,12 +68,12 @@ Estrutura obrigatória:
 
 **`stop_production`** — para a produção por avaria ou excesso de estoque
 ```json
-{ "action": "stop_production", "payload": { "affected_product_id": "mat_001" }, "reasoning_summary": "..." }
+{ "action": "stop_production", "payload": { "material_id": "mat_001" }, "reasoning_summary": "..." }
 ```
 
 **`send_stock`** — despacha estoque para armazém parceiro
 ```json
-{ "action": "send_stock", "payload": { "material_id": "mat_001", "quantity_tons": 30, "to_warehouse": "warehouse_02" }, "reasoning_summary": "..." }
+{ "action": "send_stock", "payload": { "material_id": "mat_001", "quantity_tons": 30, "destination_warehouse_id": "warehouse_02" }, "reasoning_summary": "..." }
 ```
 
 **`hold`** — nenhuma ação necessária neste tick

@@ -27,10 +27,20 @@ O engine projetou que o estoque de um ou mais produtos vai cruzar o `reorder_poi
 - Para cada produto em `store_stocks`:
   - Calcule a quantidade necessária para pedido: `quantity = demand_rate[material_id] * lead_time_ticks * 1.5 - current_stock[material_id]`
   - Se `quantity > 0`: o estoque não cobre o prazo de entrega com margem de segurança — emita `order_replenishment`.
-  - Selecione `from_warehouse` com base no armazém regional mais próximo que tenha o produto disponível (conforme `related_entities`).
-  - Inclua `material_id`, `quantity_tons` (arredonde para cima) e `from_warehouse` no payload.
+  - Selecione `from_warehouse_id` com base no armazém regional mais próximo que tenha o produto disponível (conforme `related_entities`).
+  - Inclua `material_id`, `quantity_tons` (arredonde para cima) e `from_warehouse_id` no payload.
 - Se todos os produtos tiverem `quantity <= 0`: o estoque está saudável — emita `hold`.
 - Se houver múltiplos produtos com necessidade de reposição, emita um pedido para o produto com menor proporção `stock / reorder_point` (mais urgente primeiro).
+
+## Gatilho: `order_retry_eligible`
+
+Uma ordem de reposição anterior foi rejeitada pelo armazém, e o período de backoff expirou. Você pode tentar novamente.
+
+- O payload contém `order_id` (ordem rejeitada original), `material_id` e `original_target_id` (armazém que rejeitou).
+- Avalie se o armazém original (`original_target_id`) ainda é viável — verifique `related_entities` para disponibilidade.
+- Se o armazém original parece viável: emita `order_replenishment` com `from_warehouse_id = original_target_id`.
+- Se o armazém original não parece viável (ex: sem estoque, região diferente): escolha outro armazém de `related_entities` e emita `order_replenishment` com o novo `from_warehouse_id`.
+- Se nenhum armazém está disponível: emita `hold` e aguarde o próximo tick.
 
 ## Gatilho: `demand_spike`
 
@@ -39,7 +49,7 @@ A loja detectou um pico atípico de demanda que esgotará o estoque antes do pre
 - Recalcule a quantidade necessária considerando a demanda elevada do evento: `quantity = demand_spike_rate[material_id] * lead_time_ticks * 1.5 - current_stock[material_id]`
 - Emita `order_replenishment` com `quantity_tons` ajustado para cobrir o pico.
 - Indique no `reasoning_summary` que o pedido é motivado pelo pico de demanda e a magnitude do ajuste.
-- Selecione `from_warehouse` conforme o armazém mais próximo disponível.
+- Selecione `from_warehouse_id` conforme o armazém mais próximo disponível.
 
 # Formato de Resposta
 
@@ -58,7 +68,7 @@ Estrutura obrigatória:
 
 **`order_replenishment`** — solicita reposição de estoque ao armazém regional
 ```json
-{ "action": "order_replenishment", "payload": { "material_id": "mat_001", "quantity_tons": 20, "from_warehouse": "warehouse_03" }, "reasoning_summary": "..." }
+{ "action": "order_replenishment", "payload": { "material_id": "mat_001", "quantity_tons": 20, "from_warehouse_id": "warehouse_03" }, "reasoning_summary": "..." }
 ```
 
 **`hold`** — nenhuma ação necessária neste tick

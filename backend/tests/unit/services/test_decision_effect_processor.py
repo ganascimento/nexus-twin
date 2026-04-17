@@ -175,6 +175,7 @@ def processor(
         truck_repo=mock_truck_repo,
         warehouse_repo=mock_warehouse_repo,
         store_repo=mock_store_repo,
+        route_repo=AsyncMock(),
     )
 
 
@@ -347,7 +348,7 @@ async def test_reject_order_calls_warehouse_service(processor, mock_warehouse_se
     )
 
     mock_warehouse_service.reject_order.assert_called_once_with(
-        "order_007", "insuficiente"
+        "order_007", "insuficiente", retry_after_ticks=5
     )
 
 

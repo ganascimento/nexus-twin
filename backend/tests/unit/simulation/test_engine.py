@@ -470,15 +470,22 @@ async def test_evaluate_triggers_does_not_wake_store_when_stock_ok():
 
     with patch.object(engine, "_estimate_lead_time_ticks", return_value=3):
         with patch("src.simulation.engine.EventRepository") as MockEventRepo, \
-             patch("src.simulation.engine.OrderRepository") as MockOrderRepo:
+             patch("src.simulation.engine.OrderRepository") as MockOrderRepo, \
+             patch("src.simulation.engine.TruckRepository") as MockTruckRepo:
             mock_event_repo = AsyncMock()
             MockEventRepo.return_value = mock_event_repo
             mock_event_repo.get_active_for_entity.return_value = []
+            mock_event_repo.get_active_by_type.return_value = []
 
             mock_order_repo = AsyncMock()
             MockOrderRepo.return_value = mock_order_repo
             mock_order_repo.get_untriggered_for_target.return_value = []
             mock_order_repo.get_triggered_but_pending_for_target.return_value = []
+            mock_order_repo.get_confirmed_without_route.return_value = []
+            mock_order_repo.get_retry_eligible.return_value = []
+
+            mock_truck_repo = AsyncMock()
+            MockTruckRepo.return_value = mock_truck_repo
 
             triggers = await engine._evaluate_triggers(world_state)
 

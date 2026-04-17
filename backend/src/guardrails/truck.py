@@ -31,23 +31,40 @@ class RequestMaintenancePayload(BaseModel):
         return v
 
 
+class AlertBreakdownPayload(BaseModel):
+    current_degradation: float
+    route_id: str | None = None
+
+
+class ReroutePayload(BaseModel):
+    order_id: str
+    reason: str
+
+
 class TruckDecision(AgentDecisionBase):
     action: Literal[
         "accept_contract", "refuse_contract", "choose_route",
-        "request_maintenance", "alert_breakdown", "complete_delivery"
+        "request_maintenance", "alert_breakdown", "complete_delivery",
+        "reroute"
     ]
-    payload: AcceptContractPayload | RefuseContractPayload | RequestMaintenancePayload | None = None
+    payload: AcceptContractPayload | RefuseContractPayload | RequestMaintenancePayload | AlertBreakdownPayload | ReroutePayload | None = None
     degradation: float | None = None
+
+    @model_validator(mode="after")
+    def payload_required_for_actions(self):
+        if self.action == "reroute" and self.payload is None:
+            raise ValueError("payload is required for action 'reroute'")
+        return self
 
     @model_validator(mode="after")
     def degradation_guardrail(self):
         if (
             self.degradation is not None
             and self.degradation >= DEGRADATION_BLOCK_THRESHOLD
-            and self.action != "request_maintenance"
+            and self.action not in ("request_maintenance", "alert_breakdown")
         ):
             raise ValueError(
                 f"degradation ({self.degradation}) >= {DEGRADATION_BLOCK_THRESHOLD}: "
-                f"only 'request_maintenance' is allowed"
+                f"only 'request_maintenance' or 'alert_breakdown' is allowed"
             )
         return self

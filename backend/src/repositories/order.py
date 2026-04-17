@@ -154,6 +154,24 @@ class OrderRepository:
             .values(status="cancelled", cancellation_reason=reason)
         )
 
+    async def get_retry_eligible(self, requester_id: str) -> list[PendingOrder]:
+        result = await self._session.execute(
+            select(PendingOrder).where(
+                PendingOrder.requester_id == requester_id,
+                PendingOrder.status == "rejected",
+                PendingOrder.retry_after_tick.isnot(None),
+                PendingOrder.age_ticks >= PendingOrder.retry_after_tick,
+            )
+        )
+        return result.scalars().all()
+
+    async def clear_retry_after_tick(self, order_id: UUID) -> None:
+        await self._session.execute(
+            update(PendingOrder)
+            .where(PendingOrder.id == order_id)
+            .values(retry_after_tick=None)
+        )
+
     async def get_confirmed_without_route(self, limit: int = 10) -> list[PendingOrder]:
         from sqlalchemy.orm import aliased
         route_alias = aliased(Route)

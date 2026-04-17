@@ -19,7 +19,9 @@ from src.simulation.events import (
     ENGINE_BLOCKED_DEGRADED_TRUCK,
     LOW_STOCK_TRIGGER,
     ORDER_RECEIVED,
+    ORDER_RETRY_ELIGIBLE,
     RESUPPLY_REQUESTED,
+    ROUTE_BLOCKED,
     STOCK_TRIGGER_FACTORY,
     STOCK_TRIGGER_WAREHOUSE,
     route_event,
@@ -33,6 +35,7 @@ from src.world.physics import (
     calculate_eta_ticks,
     evaluate_replenishment_trigger,
     is_trip_blocked,
+    roll_breakdown,
 )
 from src.world.state import WorldState
 
@@ -244,6 +247,23 @@ class SimulationEngine:
                         truck.id, new_degradation, new_breakdown_risk
                     )
 
+                    if roll_breakdown(new_breakdown_risk):
+                        await truck_repo.update_status(truck.id, "broken")
+                        await event_repo.create({
+                            "event_type": "truck_breakdown",
+                            "source": "engine",
+                            "entity_type": "truck",
+                            "entity_id": truck.id,
+                            "payload": {
+                                "route_id": str(route.id),
+                                "lat": new_lat,
+                                "lng": new_lng,
+                            },
+                            "status": "active",
+                            "tick_start": self._tick,
+                        })
+                        continue
+
             for store in world_state.stores:
                 for material_id, stock_entry in store.stocks.items():
                     delta = -min(stock_entry.demand_rate, stock_entry.stock)
@@ -271,6 +291,8 @@ class SimulationEngine:
     def _interpolate_position(
         self, path: list, timestamps: list, current_tick: int
     ) -> tuple[float, float]:
+        if not path or not timestamps:
+            return 0.0, 0.0
         if current_tick <= timestamps[0]:
             return path[0][0], path[0][1]
         if current_tick >= timestamps[-1]:
@@ -342,6 +364,25 @@ class SimulationEngine:
                             )
                         )
                         triggered = True
+
+            for store in world_state.stores:
+                retry_eligible = await order_repo.get_retry_eligible(store.id)
+                if retry_eligible:
+                    order = retry_eligible[0]
+                    triggers.append(
+                        (
+                            self._make_agent_callable("store", store.id),
+                            trigger_event(
+                                "store", store.id, ORDER_RETRY_ELIGIBLE, self._tick,
+                                payload={
+                                    "order_id": str(order.id),
+                                    "material_id": order.material_id,
+                                    "original_target_id": order.target_id,
+                                },
+                            ),
+                        )
+                    )
+                    await order_repo.clear_retry_after_tick(order.id)
 
             for warehouse in world_state.warehouses:
                 triggered = False
@@ -423,6 +464,25 @@ class SimulationEngine:
                     if factory_product and factory_product.stock >= order.quantity_tons:
                         await order_repo.reset_triggered(order.id)
 
+            for factory in world_state.factories:
+                active_events = await event_repo.get_active_for_entity(
+                    "factory", factory.id
+                )
+                for evt in active_events:
+                    triggers.append(
+                        (
+                            self._make_agent_callable("factory", factory.id),
+                            trigger_event(
+                                "factory",
+                                factory.id,
+                                evt.event_type,
+                                self._tick,
+                                payload=evt.payload or {},
+                            ),
+                        )
+                    )
+                    await event_repo.resolve(evt.id, self._tick)
+
             for warehouse in world_state.warehouses:
                 active_events = await event_repo.get_active_for_entity(
                     "warehouse", warehouse.id
@@ -479,6 +539,22 @@ class SimulationEngine:
                         )
                     )
                     await event_repo.resolve(evt.id, self._tick)
+
+            blocked_events = await event_repo.get_active_by_type("route_blocked")
+            for blocked_evt in blocked_events:
+                for truck in world_state.trucks:
+                    if truck.status != TruckStatus.IN_TRANSIT:
+                        continue
+                    triggers.append(
+                        (
+                            self._make_agent_callable("truck", truck.id),
+                            trigger_event(
+                                "truck", truck.id, ROUTE_BLOCKED, self._tick,
+                                payload=blocked_evt.payload or {},
+                            ),
+                        )
+                    )
+                await event_repo.resolve(blocked_evt.id, self._tick)
 
             orphaned_orders = await order_repo.get_confirmed_without_route(limit=10)
             for order in orphaned_orders:

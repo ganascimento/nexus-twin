@@ -19,6 +19,7 @@ ORDER_RECEIVED = "order_received"
 RESUPPLY_REQUESTED = "resupply_requested"
 RESUPPLY_DELIVERED = "resupply_delivered"
 TRUCK_MAINTENANCE_COMPLETED = "truck_maintenance_completed"
+ORDER_RETRY_ELIGIBLE = "order_retry_eligible"
 
 TRUCK_AGENT_EVENT_TYPES = frozenset(
     {ROUTE_BLOCKED, TRUCK_ARRIVED, TRUCK_BREAKDOWN, NEW_ORDER, CONTRACT_PROPOSAL}

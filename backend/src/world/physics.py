@@ -1,4 +1,5 @@
 import math
+import random
 
 
 _ROAD_TORTUOSITY_FACTOR = 1.3
@@ -38,6 +39,12 @@ def calculate_breakdown_risk(degradation: float) -> float:
 
 def is_trip_blocked(degradation: float) -> bool:
     return degradation >= 0.95
+
+
+def roll_breakdown(breakdown_risk: float) -> bool:
+    if breakdown_risk <= 0:
+        return False
+    return random.random() < breakdown_risk
 
 
 def calculate_maintenance_ticks(degradation: float) -> int:

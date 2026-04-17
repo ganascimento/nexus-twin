@@ -68,6 +68,15 @@ class EventRepository:
         )
         return result.scalars().all()
 
+    async def get_active_by_type(self, event_type: str) -> list[ChaosEvent]:
+        result = await self._session.execute(
+            select(ChaosEvent).where(
+                ChaosEvent.event_type == event_type,
+                ChaosEvent.status == "active",
+            )
+        )
+        return result.scalars().all()
+
     async def get_last_resolved_autonomous_tick(self) -> int | None:
         result = await self._session.execute(
             select(ChaosEvent.tick_end)
