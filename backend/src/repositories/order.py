@@ -28,6 +28,19 @@ class OrderRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_active_by_requester_target_material(
+        self, requester_id: str, target_id: str, material_id: str
+    ) -> PendingOrder | None:
+        result = await self._session.execute(
+            select(PendingOrder).where(
+                PendingOrder.requester_id == requester_id,
+                PendingOrder.target_id == target_id,
+                PendingOrder.material_id == material_id,
+                PendingOrder.status.in_(ACTIVE_STATUSES),
+            ).limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def has_active_order(
         self, requester_id: str, material_id: str, target_id: str | None = None
     ) -> bool:
@@ -63,7 +76,7 @@ class OrderRepository:
     async def increment_all_age_ticks(self) -> None:
         await self._session.execute(
             update(PendingOrder)
-            .where(PendingOrder.status.in_(ACTIVE_STATUSES))
+            .where(PendingOrder.status.in_(("pending", "confirmed", "rejected")))
             .values(age_ticks=PendingOrder.age_ticks + 1)
         )
 
@@ -164,6 +177,23 @@ class OrderRepository:
             )
         )
         return result.scalars().all()
+
+    async def has_order_in_pipeline(self, requester_id: str, material_id: str) -> bool:
+        result = await self._session.execute(
+            select(PendingOrder.id).where(
+                PendingOrder.requester_id == requester_id,
+                PendingOrder.material_id == material_id,
+                (
+                    PendingOrder.status.in_(ACTIVE_STATUSES)
+                    | (
+                        (PendingOrder.status == "rejected")
+                        & PendingOrder.retry_after_tick.isnot(None)
+                        & (PendingOrder.age_ticks < PendingOrder.retry_after_tick)
+                    )
+                ),
+            ).limit(1)
+        )
+        return result.scalar_one_or_none() is not None
 
     async def clear_retry_after_tick(self, order_id: UUID) -> None:
         await self._session.execute(

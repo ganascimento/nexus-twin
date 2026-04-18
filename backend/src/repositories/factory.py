@@ -110,6 +110,21 @@ class FactoryRepository:
         )
         await self._session.execute(stmt)
 
+    async def atomic_reserve_stock(
+        self, factory_id: str, material_id: str, quantity: float
+    ) -> bool:
+        result = await self._session.execute(
+            update(FactoryProduct)
+            .where(
+                FactoryProduct.factory_id == factory_id,
+                FactoryProduct.material_id == material_id,
+                FactoryProduct.stock - FactoryProduct.stock_reserved >= quantity,
+            )
+            .values(stock_reserved=FactoryProduct.stock_reserved + quantity)
+            .returning(FactoryProduct.factory_id)
+        )
+        return result.scalar_one_or_none() is not None
+
     async def release_reserved(self, factory_id: str, material_id: str, quantity: float) -> None:
         await self._session.execute(
             update(FactoryProduct)
@@ -118,6 +133,19 @@ class FactoryRepository:
                 FactoryProduct.material_id == material_id,
             )
             .values(stock_reserved=FactoryProduct.stock_reserved - quantity)
+        )
+
+    async def consume_reserved(self, factory_id: str, material_id: str, quantity: float) -> None:
+        await self._session.execute(
+            update(FactoryProduct)
+            .where(
+                FactoryProduct.factory_id == factory_id,
+                FactoryProduct.material_id == material_id,
+            )
+            .values(
+                stock=FactoryProduct.stock - quantity,
+                stock_reserved=FactoryProduct.stock_reserved - quantity,
+            )
         )
 
     async def get_partner_warehouses(self, factory_id: str) -> list[Warehouse]:

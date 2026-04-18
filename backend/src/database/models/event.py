@@ -10,7 +10,7 @@ class ChaosEvent(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_type = Column(String(50), nullable=False)
-    source = Column(String(20), nullable=False)
+    source = Column(String(50), nullable=False)
     entity_type = Column(String(20), nullable=True)
     entity_id = Column(String(50), nullable=True)
     payload = Column(JSONB, nullable=False)

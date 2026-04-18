@@ -424,6 +424,7 @@ async def test_send_stock_creates_order_and_event(
     mock_order_repo,
     mock_event_repo,
     mock_truck_repo,
+    mock_factory_repo,
 ):
     proprietario_truck = _make_mock_truck(
         id="truck_prop_01",
@@ -432,6 +433,8 @@ async def test_send_stock_creates_order_and_event(
         factory_id="factory_01",
     )
     mock_truck_repo.get_by_factory.return_value = [proprietario_truck]
+    mock_order_repo.get_active_by_requester_target_material.return_value = None
+    mock_factory_repo.atomic_reserve_stock.return_value = True
 
     payload = {
         "material_id": "cimento",
@@ -443,15 +446,16 @@ async def test_send_stock_creates_order_and_event(
         "factory", "factory_01", "send_stock", payload, current_tick=5
     )
 
-    mock_order_repo.has_active_order.assert_called_once_with(
-        "factory_01", "cimento", "wh_01"
+    mock_factory_repo.atomic_reserve_stock.assert_called_once_with(
+        "factory_01", "cimento", 50
     )
     mock_order_repo.create.assert_called_once()
     created = mock_order_repo.create.call_args[0][0]
-    assert created["requester_type"] == "factory"
-    assert created["requester_id"] == "factory_01"
-    assert created["target_type"] == "warehouse"
-    assert created["target_id"] == "wh_01"
+    assert created["requester_type"] == "warehouse"
+    assert created["requester_id"] == "wh_01"
+    assert created["target_type"] == "factory"
+    assert created["target_id"] == "factory_01"
+    assert created["status"] == "confirmed"
 
     mock_event_repo.create.assert_called_once()
     event_data = mock_event_repo.create.call_args[0][0]

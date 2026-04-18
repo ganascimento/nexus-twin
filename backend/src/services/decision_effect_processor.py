@@ -141,28 +141,39 @@ class DecisionEffectProcessor:
 
     async def _handle_send_stock(self, entity_id, payload, tick):
         material_id = payload["material_id"]
-        target_id = payload["destination_warehouse_id"]
+        destination_warehouse_id = payload["destination_warehouse_id"]
+        quantity_tons = payload["quantity_tons"]
 
-        if await self._order_repo.has_active_order(entity_id, material_id, target_id):
-            logger.info(
-                "Skipping duplicate send_stock: factory={} material={} warehouse={}",
-                entity_id,
-                material_id,
-                target_id,
-            )
-            return
-
-        await self._order_repo.create(
-            {
-                "requester_type": "factory",
-                "requester_id": entity_id,
-                "target_type": "warehouse",
-                "target_id": target_id,
-                "material_id": material_id,
-                "quantity_tons": payload["quantity_tons"],
-                "status": "pending",
-            }
+        existing = await self._order_repo.get_active_by_requester_target_material(
+            destination_warehouse_id, entity_id, material_id
         )
+        already_reserved = existing is not None and existing.status == "confirmed"
+
+        if not already_reserved:
+            reserved = await self._factory_repo.atomic_reserve_stock(
+                entity_id, material_id, quantity_tons
+            )
+            if not reserved:
+                logger.warning(
+                    "Insufficient factory stock to reserve for send_stock: factory={} material={} qty={}",
+                    entity_id, material_id, quantity_tons,
+                )
+                return
+
+            if existing is None:
+                await self._order_repo.create(
+                    {
+                        "requester_type": "warehouse",
+                        "requester_id": destination_warehouse_id,
+                        "target_type": "factory",
+                        "target_id": entity_id,
+                        "material_id": material_id,
+                        "quantity_tons": quantity_tons,
+                        "status": "confirmed",
+                    }
+                )
+            else:
+                await self._order_repo.update_status(existing.id, "confirmed")
 
         truck = await self._find_truck_for_factory(entity_id)
         if truck is None:
@@ -184,7 +195,7 @@ class DecisionEffectProcessor:
                     "origin_type": "factory",
                     "origin_id": entity_id,
                     "destination_type": "warehouse",
-                    "destination_id": target_id,
+                    "destination_id": destination_warehouse_id,
                 },
                 "status": "active",
                 "tick_start": tick,
@@ -226,6 +237,10 @@ class DecisionEffectProcessor:
             "order_id": str(order.id),
             "material_id": order.material_id,
             "quantity_tons": order.quantity_tons,
+            "origin_type": order.target_type,
+            "origin_id": order.target_id,
+            "destination_type": order.requester_type,
+            "destination_id": order.requester_id,
         }
         await self._truck_service.assign_route(entity_id, str(route.id), cargo)
 

@@ -114,6 +114,19 @@ class WarehouseRepository:
             .values(stock_reserved=WarehouseStock.stock_reserved - quantity)
         )
 
+    async def consume_reserved(self, warehouse_id: str, material_id: str, quantity: float) -> None:
+        await self._session.execute(
+            update(WarehouseStock)
+            .where(
+                WarehouseStock.warehouse_id == warehouse_id,
+                WarehouseStock.material_id == material_id,
+            )
+            .values(
+                stock=WarehouseStock.stock - quantity,
+                stock_reserved=WarehouseStock.stock_reserved - quantity,
+            )
+        )
+
     async def list_by_region(self, region: str) -> list[Warehouse]:
         result = await self._session.execute(
             select(Warehouse).where(Warehouse.region == region)

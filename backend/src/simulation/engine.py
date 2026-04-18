@@ -129,7 +129,24 @@ class SimulationEngine:
                     continue
 
                 if is_trip_blocked(truck.degradation):
-                    await truck_repo.update_status(truck.id, "idle")
+                    blocked_route = await route_repo.get_active_by_truck(truck.id)
+                    if blocked_route is not None:
+                        await route_repo.update_status(blocked_route.id, "interrupted")
+                    await truck_repo.set_cargo(truck.id, None)
+                    await truck_repo.set_active_route(truck.id, None)
+                    await truck_repo.update_status(truck.id, "broken")
+                    await event_repo.create({
+                        "event_type": "truck_breakdown",
+                        "source": "engine",
+                        "entity_type": "truck",
+                        "entity_id": truck.id,
+                        "payload": {
+                            "reason": "degradation_threshold",
+                            "degradation": truck.degradation,
+                        },
+                        "status": "active",
+                        "tick_start": self._tick,
+                    })
                     await publish_event(
                         route_event(
                             ENGINE_BLOCKED_DEGRADED_TRUCK, truck.id, {}, self._tick
@@ -156,6 +173,15 @@ class SimulationEngine:
                             material_id = getattr(cargo, "material_id", None)
                             quantity_tons = getattr(cargo, "quantity_tons", 0.0)
                         if material_id and quantity_tons > 0:
+                            if route.origin_type == "warehouse":
+                                await warehouse_repo.consume_reserved(
+                                    route.origin_id, material_id, quantity_tons
+                                )
+                            elif route.origin_type == "factory":
+                                await factory_repo.consume_reserved(
+                                    route.origin_id, material_id, quantity_tons
+                                )
+
                             if route.dest_type == "warehouse":
                                 await warehouse_repo.update_stock(
                                     route.dest_id, material_id, quantity_tons
@@ -355,15 +381,19 @@ class SimulationEngine:
                         lead_time_ticks,
                     )
                     if should_trigger and not triggered:
-                        triggers.append(
-                            (
-                                self._make_agent_callable("store", store.id),
-                                trigger_event(
-                                    "store", store.id, LOW_STOCK_TRIGGER, self._tick
-                                ),
-                            )
+                        already_in_pipeline = await order_repo.has_order_in_pipeline(
+                            store.id, material_id
                         )
-                        triggered = True
+                        if not already_in_pipeline:
+                            triggers.append(
+                                (
+                                    self._make_agent_callable("store", store.id),
+                                    trigger_event(
+                                        "store", store.id, LOW_STOCK_TRIGGER, self._tick
+                                    ),
+                                )
+                            )
+                            triggered = True
 
             for store in world_state.stores:
                 retry_eligible = await order_repo.get_retry_eligible(store.id)

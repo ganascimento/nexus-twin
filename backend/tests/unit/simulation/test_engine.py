@@ -357,8 +357,6 @@ async def test_apply_physics_increments_truck_degradation():
 
 @pytest.mark.asyncio
 async def test_apply_physics_blocks_trip_when_degradation_above_95_pct():
-    # Truck is in_transit with degradation >= 0.95 — engine must forcibly mark it idle
-    # and publish a blocking event
     truck = make_truck(
         status=TruckStatus.IN_TRANSIT,
         degradation=0.95,
@@ -379,18 +377,30 @@ async def test_apply_physics_blocks_trip_when_degradation_above_95_pct():
     )
     world_state = make_world_state(trucks=[truck])
 
-    with patch("src.simulation.engine.TruckRepository") as MockTruckRepo:
+    with patch("src.simulation.engine.TruckRepository") as MockTruckRepo, \
+         patch("src.simulation.engine.RouteRepository") as MockRouteRepo, \
+         patch("src.simulation.engine.EventRepository") as MockEventRepo, \
+         patch("src.simulation.engine.publish_event", new_callable=AsyncMock) as mock_publish:
         mock_truck_repo = AsyncMock()
         MockTruckRepo.return_value = mock_truck_repo
-        with patch(
-            "src.simulation.engine.publish_event", new_callable=AsyncMock
-        ) as mock_publish:
-            engine = make_engine()
-            engine._tick = 2
-            await engine._apply_physics(world_state)
 
-    mock_truck_repo.update_status.assert_called_once_with("truck-001", "idle")
-    mock_truck_repo.update_position.assert_not_called()
+        mock_route_repo = AsyncMock()
+        mock_active_route = MagicMock()
+        mock_active_route.id = "route-001"
+        mock_route_repo.get_active_by_truck.return_value = mock_active_route
+        MockRouteRepo.return_value = mock_route_repo
+
+        mock_event_repo = AsyncMock()
+        MockEventRepo.return_value = mock_event_repo
+
+        engine = make_engine()
+        engine._tick = 2
+        await engine._apply_physics(world_state)
+
+    mock_truck_repo.update_status.assert_any_call("truck-001", "broken")
+    mock_truck_repo.set_cargo.assert_called_once_with("truck-001", None)
+    mock_truck_repo.set_active_route.assert_called_once_with("truck-001", None)
+    mock_route_repo.update_status.assert_called_once_with("route-001", "interrupted")
 
     mock_publish.assert_called_once()
     published_event = mock_publish.call_args[0][0]

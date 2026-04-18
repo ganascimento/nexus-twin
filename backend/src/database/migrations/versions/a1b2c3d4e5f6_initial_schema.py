@@ -158,6 +158,8 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), nullable=False),
         sa.Column("factory_id", sa.String(50), nullable=True),
         sa.Column("cargo", postgresql.JSONB(), nullable=True),
+        sa.Column("maintenance_start_tick", sa.Integer(), nullable=True),
+        sa.Column("maintenance_duration_ticks", sa.Integer(), nullable=True),
         sa.Column("active_route_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column(
             "created_at",
@@ -186,6 +188,7 @@ def upgrade() -> None:
         sa.Column("timestamps", postgresql.JSONB(), nullable=False),
         sa.Column("eta_ticks", sa.Integer(), nullable=False),
         sa.Column("status", sa.String(20), nullable=False),
+        sa.Column("order_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("started_at", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column("completed_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["truck_id"], ["trucks.id"]),
@@ -210,6 +213,7 @@ def upgrade() -> None:
         sa.Column("rejection_reason", sa.Text(), nullable=True),
         sa.Column("cancellation_reason", sa.Text(), nullable=True),
         sa.Column("eta_ticks", sa.Integer(), nullable=True),
+        sa.Column("triggered_at_tick", sa.Integer(), nullable=True),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -225,11 +229,15 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["material_id"], ["materials.id"]),
     )
 
+    op.create_foreign_key(
+        "fk_route_order", "routes", "pending_orders", ["order_id"], ["id"]
+    )
+
     op.create_table(
         "events",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("event_type", sa.String(50), nullable=False),
-        sa.Column("source", sa.String(20), nullable=False),
+        sa.Column("source", sa.String(50), nullable=False),
         sa.Column("entity_type", sa.String(20), nullable=True),
         sa.Column("entity_id", sa.String(50), nullable=True),
         sa.Column("payload", postgresql.JSONB(), nullable=False),
@@ -264,6 +272,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_constraint("fk_route_order", "routes", type_="foreignkey")
     op.drop_constraint("fk_truck_active_route", "trucks", type_="foreignkey")
     op.drop_table("agent_decisions")
     op.drop_table("events")
