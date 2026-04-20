@@ -102,6 +102,7 @@ async def test_retries_orphaned_order_with_idle_third_party():
         mock_event_repo = AsyncMock()
         MockEventRepo.return_value = mock_event_repo
         mock_event_repo.get_active_for_entity.return_value = []
+        mock_event_repo.order_has_active_truck_event.return_value = False
 
         mock_order_repo = AsyncMock()
         MockOrderRepo.return_value = mock_order_repo
@@ -112,7 +113,7 @@ async def test_retries_orphaned_order_with_idle_third_party():
         mock_truck_repo = AsyncMock()
         MockTruckRepo.return_value = mock_truck_repo
         mock_truck_repo.get_idle_by_factory.return_value = None
-        mock_truck_repo.get_nearest_idle_third_party.return_value = idle_truck
+        mock_truck_repo.get_idle_third_party_for_load.return_value = idle_truck
 
         triggers = await engine._evaluate_triggers(world_state)
 
@@ -141,6 +142,7 @@ async def test_retries_factory_order_with_proprietario():
         mock_event_repo = AsyncMock()
         MockEventRepo.return_value = mock_event_repo
         mock_event_repo.get_active_for_entity.return_value = []
+        mock_event_repo.order_has_active_truck_event.return_value = False
 
         mock_order_repo = AsyncMock()
         MockOrderRepo.return_value = mock_order_repo
@@ -178,6 +180,7 @@ async def test_skips_retry_when_no_truck_available():
         mock_event_repo = AsyncMock()
         MockEventRepo.return_value = mock_event_repo
         mock_event_repo.get_active_for_entity.return_value = []
+        mock_event_repo.order_has_active_truck_event.return_value = False
 
         mock_order_repo = AsyncMock()
         MockOrderRepo.return_value = mock_order_repo
@@ -188,7 +191,7 @@ async def test_skips_retry_when_no_truck_available():
         mock_truck_repo = AsyncMock()
         MockTruckRepo.return_value = mock_truck_repo
         mock_truck_repo.get_idle_by_factory.return_value = None
-        mock_truck_repo.get_nearest_idle_third_party.return_value = None
+        mock_truck_repo.get_idle_third_party_for_load.return_value = None
 
         triggers = await engine._evaluate_triggers(world_state)
 
@@ -213,6 +216,7 @@ async def test_limits_retry_to_10_per_tick():
         mock_event_repo = AsyncMock()
         MockEventRepo.return_value = mock_event_repo
         mock_event_repo.get_active_for_entity.return_value = []
+        mock_event_repo.order_has_active_truck_event.return_value = False
 
         mock_order_repo = AsyncMock()
         MockOrderRepo.return_value = mock_order_repo
@@ -259,7 +263,7 @@ async def test_no_duplicate_events_for_same_order():
         mock_truck_repo = AsyncMock()
         MockTruckRepo.return_value = mock_truck_repo
         mock_truck_repo.get_idle_by_factory.return_value = None
-        mock_truck_repo.get_nearest_idle_third_party.return_value = idle_truck
+        mock_truck_repo.get_idle_third_party_for_load.return_value = idle_truck
 
         await engine._evaluate_triggers(world_state)
 

@@ -79,61 +79,49 @@ async def test_build_world_state_slice_includes_truck_type(mock_db_session, mock
     mock_truck = MagicMock()
     mock_truck.id = "truck-001"
     mock_truck.truck_type = "terceiro"
+    mock_truck.capacity_tons = 18
     mock_truck.degradation = 0.3
-    mock_truck.cargo = {}
     mock_truck.status = "idle"
-    mock_truck.active_route_id = None
 
     mock_truck_repo = AsyncMock()
     mock_truck_repo.get_by_id.return_value = mock_truck
 
-    mock_event_repo = AsyncMock()
-    mock_event_repo.get_active_for_entity.return_value = []
-
     with patch("src.agents.truck_agent.TruckRepository", return_value=mock_truck_repo):
-        with patch("src.agents.truck_agent.EventRepository", return_value=mock_event_repo):
-            world_slice = await agent._build_world_state_slice(current_tick=1)
+        world_slice = await agent._build_world_state_slice(make_trigger())
 
     entity = world_slice["entity"]
     assert "truck_type" in entity
 
 
 # ---------------------------------------------------------------------------
-# test_build_world_state_slice_includes_active_route
+# test_build_world_state_slice_adds_cargo_on_transit_events
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_build_world_state_slice_includes_active_route(mock_db_session, mock_publisher):
+async def test_build_world_state_slice_adds_cargo_for_transit_events(mock_db_session, mock_publisher):
     agent = TruckAgent("truck-001", mock_db_session, mock_publisher)
 
     mock_truck = MagicMock()
     mock_truck.id = "truck-001"
     mock_truck.truck_type = "proprietario"
+    mock_truck.capacity_tons = 18
     mock_truck.degradation = 0.2
-    mock_truck.cargo = {}
+    mock_truck.cargo = {"material_id": "cimento"}
     mock_truck.status = "in_transit"
     mock_truck.active_route_id = "route-abc"
-
-    mock_route = MagicMock()
-    mock_route.id = "route-abc"
 
     mock_truck_repo = AsyncMock()
     mock_truck_repo.get_by_id.return_value = mock_truck
 
-    mock_route_repo = AsyncMock()
-    mock_route_repo.get_by_id.return_value = mock_route
-
-    mock_event_repo = AsyncMock()
-    mock_event_repo.get_active_for_entity.return_value = []
-
     with patch("src.agents.truck_agent.TruckRepository", return_value=mock_truck_repo):
-        with patch("src.agents.truck_agent.RouteRepository", return_value=mock_route_repo):
-            with patch("src.agents.truck_agent.EventRepository", return_value=mock_event_repo):
-                world_slice = await agent._build_world_state_slice(current_tick=1)
+        world_slice = await agent._build_world_state_slice(
+            make_trigger(event_type="route_blocked")
+        )
 
-    assert len(world_slice["related_entities"]) >= 1
-    mock_route_repo.get_by_id.assert_called_once_with("route-abc")
+    entity = world_slice["entity"]
+    assert entity["cargo"] == {"material_id": "cimento"}
+    assert entity["active_route_id"] == "route-abc"
 
 
 # ---------------------------------------------------------------------------

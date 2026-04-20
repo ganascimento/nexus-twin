@@ -75,11 +75,12 @@ class FactoryAgent:
         )
 
     async def run_cycle(self, trigger) -> None:
-        world_state = await self._build_world_state_slice(trigger.tick)
+        world_state = await self._build_world_state_slice(trigger)
         initial_state: AgentState = {
             "entity_id": self._entity_id,
             "entity_type": "factory",
             "trigger_event": trigger.event_type,
+            "trigger_payload": trigger.payload or {},
             "current_tick": trigger.tick,
             "world_state": world_state,
             "messages": [],
@@ -99,51 +100,39 @@ class FactoryAgent:
         )
         await graph.ainvoke(initial_state)
 
-    async def _build_world_state_slice(self, current_tick: int) -> WorldStateSlice:
+    async def _build_world_state_slice(self, trigger) -> WorldStateSlice:
         factory_repo = FactoryRepository(self._db_session)
-        event_repo = EventRepository(self._db_session)
-        order_repo = OrderRepository(self._db_session)
-
         factory = await factory_repo.get_by_id(self._entity_id)
-        partner_warehouses = await factory_repo.get_partner_warehouses(self._entity_id)
-        active_events = await event_repo.get_active_for_entity(
-            "factory", self._entity_id
-        )
-        pending_orders = await order_repo.get_pending_for_target(self._entity_id)
+
+        event_type = trigger.event_type
+        payload = trigger.payload or {}
+        material_of_interest = payload.get("material_id")
+
+        if event_type == "resupply_requested" and material_of_interest:
+            products = [
+                _serialize_product(p) for p in factory.products
+                if p.material_id == material_of_interest
+            ]
+        else:
+            products = [_serialize_product(p) for p in factory.products]
 
         entity_dict = {
             "id": factory.id,
-            "name": factory.name,
-            "lat": factory.lat,
-            "lng": factory.lng,
             "status": factory.status,
-            "products": [_serialize_product(p) for p in factory.products],
+            "products": products,
         }
 
-        related = [_serialize_warehouse(w) for w in partner_warehouses[:10]]
-        events = [
-            {
-                "id": str(e.id),
-                "entity_id": e.entity_id,
-                "entity_type": e.entity_type,
-                "event_type": e.event_type,
-                "status": e.status,
-            }
-            for e in active_events
-        ]
-        orders = [
-            {
-                "id": str(o.id),
-                "target_id": o.target_id,
-                "requester_id": o.requester_id,
-                "status": o.status,
-            }
-            for o in pending_orders
-        ]
+        if event_type in ("stock_trigger_factory", "resupply_requested"):
+            partner_warehouses = await factory_repo.get_partner_warehouses(
+                self._entity_id
+            )
+            related = [_serialize_warehouse(w) for w in partner_warehouses[:10]]
+        else:
+            related = []
 
         return WorldStateSlice(
             entity=entity_dict,
             related_entities=related,
-            active_events=events,
-            pending_orders=orders,
+            active_events=[],
+            pending_orders=[],
         )

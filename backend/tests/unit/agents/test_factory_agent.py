@@ -77,33 +77,34 @@ async def test_build_world_state_slice_includes_factory_products(mock_db_session
     mock_product = MagicMock()
     mock_product.material_id = "tijolos"
     mock_product.stock = 10.0
+    mock_product.stock_reserved = 0.0
+    mock_product.stock_max = 100.0
+    mock_product.production_rate_current = 0.0
+    mock_product.production_rate_max = 10.0
 
     mock_factory = MagicMock()
     mock_factory.id = "factory-001"
-    mock_factory.name = "Fábrica Campinas"
+    mock_factory.status = "operating"
     mock_factory.products = [mock_product]
 
     mock_factory_repo = AsyncMock()
     mock_factory_repo.get_by_id.return_value = mock_factory
     mock_factory_repo.get_partner_warehouses.return_value = []
 
-    mock_event_repo = AsyncMock()
-    mock_event_repo.get_active_for_entity.return_value = []
-
-    mock_order_repo = AsyncMock()
-    mock_order_repo.get_pending_for_target.return_value = []
+    trigger = MagicMock()
+    trigger.event_type = "stock_trigger_factory"
+    trigger.payload = {}
 
     with patch("src.agents.factory_agent.FactoryRepository", return_value=mock_factory_repo):
-        with patch("src.agents.factory_agent.EventRepository", return_value=mock_event_repo):
-            with patch("src.agents.factory_agent.OrderRepository", return_value=mock_order_repo):
-                world_slice = await agent._build_world_state_slice(current_tick=1)
+        world_slice = await agent._build_world_state_slice(trigger)
 
     entity = world_slice["entity"]
-    assert "products" in entity or "factory_products" in entity
+    assert len(entity["products"]) == 1
+    assert entity["products"][0]["material_id"] == "tijolos"
 
 
 # ---------------------------------------------------------------------------
-# test_build_world_state_slice_includes_partner_warehouses
+# test_build_world_state_slice_includes_partner_warehouses_only_on_stock_or_resupply
 # ---------------------------------------------------------------------------
 
 
@@ -113,61 +114,56 @@ async def test_build_world_state_slice_includes_partner_warehouses(mock_db_sessi
 
     mock_factory = MagicMock()
     mock_factory.id = "factory-001"
+    mock_factory.status = "operating"
     mock_factory.products = []
 
-    mock_warehouse_1 = MagicMock()
-    mock_warehouse_1.id = "warehouse-001"
-    mock_warehouse_2 = MagicMock()
-    mock_warehouse_2.id = "warehouse-002"
+    mock_warehouse_1 = MagicMock(id="warehouse-001", name="w1", lat=0, lng=0, region="a", capacity_total=500, status="operating")
+    mock_warehouse_2 = MagicMock(id="warehouse-002", name="w2", lat=0, lng=0, region="b", capacity_total=500, status="operating")
 
     mock_factory_repo = AsyncMock()
     mock_factory_repo.get_by_id.return_value = mock_factory
     mock_factory_repo.get_partner_warehouses.return_value = [mock_warehouse_1, mock_warehouse_2]
 
-    mock_event_repo = AsyncMock()
-    mock_event_repo.get_active_for_entity.return_value = []
-
-    mock_order_repo = AsyncMock()
-    mock_order_repo.get_pending_for_target.return_value = []
+    trigger = MagicMock()
+    trigger.event_type = "stock_trigger_factory"
+    trigger.payload = {}
 
     with patch("src.agents.factory_agent.FactoryRepository", return_value=mock_factory_repo):
-        with patch("src.agents.factory_agent.EventRepository", return_value=mock_event_repo):
-            with patch("src.agents.factory_agent.OrderRepository", return_value=mock_order_repo):
-                world_slice = await agent._build_world_state_slice(current_tick=1)
+        world_slice = await agent._build_world_state_slice(trigger)
 
     assert len(world_slice["related_entities"]) == 2
 
 
 # ---------------------------------------------------------------------------
-# test_build_world_state_slice_filters_active_events
+# test_build_world_state_slice_filters_products_to_requested_material
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_build_world_state_slice_filters_active_events(mock_db_session, mock_publisher):
+async def test_build_world_state_slice_filters_products_by_material_on_resupply_requested(mock_db_session, mock_publisher):
     agent = FactoryAgent("factory-001", mock_db_session, mock_publisher)
+
+    product_tijolos = MagicMock(material_id="tijolos", stock=10.0, stock_reserved=0.0,
+                                 stock_max=100.0, production_rate_current=0.0, production_rate_max=10.0)
+    product_cimento = MagicMock(material_id="cimento", stock=50.0, stock_reserved=0.0,
+                                 stock_max=100.0, production_rate_current=0.0, production_rate_max=10.0)
 
     mock_factory = MagicMock()
     mock_factory.id = "factory-001"
-    mock_factory.products = []
-
-    event_for_entity = MagicMock()
-    event_for_entity.entity_id = "factory-001"
+    mock_factory.status = "operating"
+    mock_factory.products = [product_tijolos, product_cimento]
 
     mock_factory_repo = AsyncMock()
     mock_factory_repo.get_by_id.return_value = mock_factory
     mock_factory_repo.get_partner_warehouses.return_value = []
 
-    mock_event_repo = AsyncMock()
-    mock_event_repo.get_active_for_entity.return_value = [event_for_entity]
-
-    mock_order_repo = AsyncMock()
-    mock_order_repo.get_pending_for_target.return_value = []
+    trigger = MagicMock()
+    trigger.event_type = "resupply_requested"
+    trigger.payload = {"material_id": "cimento"}
 
     with patch("src.agents.factory_agent.FactoryRepository", return_value=mock_factory_repo):
-        with patch("src.agents.factory_agent.EventRepository", return_value=mock_event_repo):
-            with patch("src.agents.factory_agent.OrderRepository", return_value=mock_order_repo):
-                world_slice = await agent._build_world_state_slice(current_tick=1)
+        world_slice = await agent._build_world_state_slice(trigger)
 
-    assert len(world_slice["active_events"]) == 1
-    mock_event_repo.get_active_for_entity.assert_called_once_with("factory", "factory-001")
+    products = world_slice["entity"]["products"]
+    assert len(products) == 1
+    assert products[0]["material_id"] == "cimento"

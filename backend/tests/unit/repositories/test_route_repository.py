@@ -10,13 +10,27 @@ from src.repositories.route import RouteRepository
 async def test_get_active_by_truck_returns_none_when_no_active_route():
     session = AsyncMock()
     result = MagicMock()
-    result.scalar_one_or_none.return_value = None
+    result.scalars.return_value.first.return_value = None
     session.execute.return_value = result
 
     repo = RouteRepository(session)
     route = await repo.get_active_by_truck("t1")
 
     assert route is None
+
+
+@pytest.mark.asyncio
+async def test_get_active_by_truck_returns_most_recent_when_multiple_active():
+    expected = MagicMock(id=uuid.uuid4())
+    session = AsyncMock()
+    result = MagicMock()
+    result.scalars.return_value.first.return_value = expected
+    session.execute.return_value = result
+
+    repo = RouteRepository(session)
+    route = await repo.get_active_by_truck("t1")
+
+    assert route is expected
 
 
 @pytest.mark.asyncio

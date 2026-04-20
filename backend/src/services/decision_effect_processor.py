@@ -239,6 +239,15 @@ class DecisionEffectProcessor:
             )
             return
 
+        if self._route_repo is not None:
+            existing_route = await self._route_repo.get_active_by_truck(entity_id)
+            if existing_route is not None:
+                logger.warning(
+                    "Ignoring accept_contract: truck={} already has active route={}",
+                    entity_id, existing_route.id,
+                )
+                return
+
         origin_coords = await self._get_entity_coords(
             order.target_type, order.target_id
         )
@@ -277,12 +286,20 @@ class DecisionEffectProcessor:
 
     async def _handle_refuse_contract(self, entity_id, payload, tick):
         order = await self._order_repo.get_by_id(payload["order_id"])
+        if order is None:
+            return
 
-        next_truck = await self._find_idle_third_party_truck(exclude_id=entity_id)
+        origin_coords = await self._get_entity_coords(order.target_type, order.target_id)
+        next_truck = await self._truck_repo.get_idle_third_party_for_load(
+            order.quantity_tons,
+            origin_coords[0],
+            origin_coords[1],
+            exclude_id=entity_id,
+        )
         if next_truck is None:
             logger.warning(
-                "No alternative truck for refused contract: order={}",
-                payload["order_id"],
+                "No alternative truck with enough capacity for refused contract: order={} qty={}",
+                payload["order_id"], order.quantity_tons,
             )
             return
 
@@ -294,10 +311,12 @@ class DecisionEffectProcessor:
                 "entity_id": next_truck.id,
                 "payload": {
                     "order_id": str(order.id),
-                    "origin_type": order.target_type,
-                    "origin_id": order.target_id,
-                    "destination_type": order.requester_type,
-                    "destination_id": order.requester_id,
+                    "material_id": order.material_id,
+                    "quantity_tons": order.quantity_tons,
+                    "target_type": order.target_type,
+                    "target_id": order.target_id,
+                    "requester_type": order.requester_type,
+                    "requester_id": order.requester_id,
                 },
                 "status": "active",
                 "tick_start": tick,

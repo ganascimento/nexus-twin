@@ -77,103 +77,95 @@ async def test_build_world_state_slice_includes_warehouse_stocks(mock_db_session
     mock_stock = MagicMock()
     mock_stock.material_id = "tijolos"
     mock_stock.stock = 80.0
+    mock_stock.stock_reserved = 0.0
+    mock_stock.min_stock = 10.0
 
     mock_warehouse = MagicMock()
     mock_warehouse.id = "warehouse-001"
     mock_warehouse.name = "Armazém Jundiaí"
+    mock_warehouse.region = "interior"
     mock_warehouse.stocks = [mock_stock]
 
     mock_warehouse_repo = AsyncMock()
     mock_warehouse_repo.get_by_id.return_value = mock_warehouse
 
+    trigger = MagicMock()
+    trigger.event_type = "stock_trigger_warehouse"
+    trigger.payload = {}
+
     mock_factory_repo = AsyncMock()
     mock_factory_repo.list_partner_for_warehouse.return_value = []
 
-    mock_order_repo = AsyncMock()
-    mock_order_repo.get_pending_for_target.return_value = []
-
-    mock_event_repo = AsyncMock()
-    mock_event_repo.get_active_for_entity.return_value = []
-
     with patch("src.agents.warehouse_agent.WarehouseRepository", return_value=mock_warehouse_repo):
         with patch("src.agents.warehouse_agent.FactoryRepository", return_value=mock_factory_repo):
-            with patch("src.agents.warehouse_agent.OrderRepository", return_value=mock_order_repo):
-                with patch("src.agents.warehouse_agent.EventRepository", return_value=mock_event_repo):
-                    world_slice = await agent._build_world_state_slice(current_tick=1)
+            world_slice = await agent._build_world_state_slice(trigger)
 
     entity = world_slice["entity"]
-    assert "stocks" in entity or "warehouse_stocks" in entity
+    assert len(entity["stocks"]) == 1
 
 
 # ---------------------------------------------------------------------------
-# test_build_world_state_slice_limits_related_entities
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_build_world_state_slice_limits_related_entities(mock_db_session, mock_publisher):
-    agent = WarehouseAgent("warehouse-001", mock_db_session, mock_publisher)
-
-    mock_warehouse = MagicMock()
-    mock_warehouse.id = "warehouse-001"
-    mock_warehouse.stocks = []
-
-    fifteen_factories = [MagicMock(id=f"factory-{i:03d}") for i in range(15)]
-
-    mock_warehouse_repo = AsyncMock()
-    mock_warehouse_repo.get_by_id.return_value = mock_warehouse
-
-    mock_factory_repo = AsyncMock()
-    mock_factory_repo.list_partner_for_warehouse.return_value = fifteen_factories
-
-    mock_order_repo = AsyncMock()
-    mock_order_repo.get_pending_for_target.return_value = []
-
-    mock_event_repo = AsyncMock()
-    mock_event_repo.get_active_for_entity.return_value = []
-
-    with patch("src.agents.warehouse_agent.WarehouseRepository", return_value=mock_warehouse_repo):
-        with patch("src.agents.warehouse_agent.FactoryRepository", return_value=mock_factory_repo):
-            with patch("src.agents.warehouse_agent.OrderRepository", return_value=mock_order_repo):
-                with patch("src.agents.warehouse_agent.EventRepository", return_value=mock_event_repo):
-                    world_slice = await agent._build_world_state_slice(current_tick=1)
-
-    assert len(world_slice["related_entities"]) <= 10
-
-
-# ---------------------------------------------------------------------------
-# test_build_world_state_slice_filters_pending_orders_by_target
+# test_build_world_state_slice_filters_stocks_to_requested_material_on_order_received
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_build_world_state_slice_filters_pending_orders_by_target(mock_db_session, mock_publisher):
+async def test_build_world_state_slice_filters_stocks_by_material_on_order_received(mock_db_session, mock_publisher):
     agent = WarehouseAgent("warehouse-001", mock_db_session, mock_publisher)
+
+    stock_cimento = MagicMock(material_id="cimento", stock=100.0, stock_reserved=0.0, min_stock=20.0)
+    stock_tijolos = MagicMock(material_id="tijolos", stock=10.0, stock_reserved=0.0, min_stock=2.0)
 
     mock_warehouse = MagicMock()
     mock_warehouse.id = "warehouse-001"
-    mock_warehouse.stocks = []
-
-    order_for_target = MagicMock()
-    order_for_target.target_id = "warehouse-001"
+    mock_warehouse.region = "a"
+    mock_warehouse.stocks = [stock_cimento, stock_tijolos]
 
     mock_warehouse_repo = AsyncMock()
     mock_warehouse_repo.get_by_id.return_value = mock_warehouse
 
-    mock_factory_repo = AsyncMock()
-    mock_factory_repo.list_partner_for_warehouse.return_value = []
-
-    mock_order_repo = AsyncMock()
-    mock_order_repo.get_pending_for_target.return_value = [order_for_target]
-
-    mock_event_repo = AsyncMock()
-    mock_event_repo.get_active_for_entity.return_value = []
+    trigger = MagicMock()
+    trigger.event_type = "order_received"
+    trigger.payload = {"material_id": "cimento"}
 
     with patch("src.agents.warehouse_agent.WarehouseRepository", return_value=mock_warehouse_repo):
-        with patch("src.agents.warehouse_agent.FactoryRepository", return_value=mock_factory_repo):
-            with patch("src.agents.warehouse_agent.OrderRepository", return_value=mock_order_repo):
-                with patch("src.agents.warehouse_agent.EventRepository", return_value=mock_event_repo):
-                    world_slice = await agent._build_world_state_slice(current_tick=1)
+        world_slice = await agent._build_world_state_slice(trigger)
+
+    stocks = world_slice["entity"]["stocks"]
+    assert len(stocks) == 1
+    assert stocks[0]["material_id"] == "cimento"
+
+
+# ---------------------------------------------------------------------------
+# test_build_world_state_slice_includes_pending_orders_only_on_resupply_delivered
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_build_world_state_slice_includes_pending_orders_on_resupply_delivered(mock_db_session, mock_publisher):
+    agent = WarehouseAgent("warehouse-001", mock_db_session, mock_publisher)
+
+    mock_warehouse = MagicMock()
+    mock_warehouse.id = "warehouse-001"
+    mock_warehouse.region = "a"
+    mock_warehouse.stocks = []
+
+    mock_order = MagicMock(id="o1", requester_id="store-001", material_id="cimento",
+                           quantity_tons=5.0, status="pending", age_ticks=2)
+
+    mock_warehouse_repo = AsyncMock()
+    mock_warehouse_repo.get_by_id.return_value = mock_warehouse
+
+    mock_order_repo = AsyncMock()
+    mock_order_repo.get_pending_for_target.return_value = [mock_order]
+
+    trigger = MagicMock()
+    trigger.event_type = "resupply_delivered"
+    trigger.payload = {}
+
+    with patch("src.agents.warehouse_agent.WarehouseRepository", return_value=mock_warehouse_repo):
+        with patch("src.agents.warehouse_agent.OrderRepository", return_value=mock_order_repo):
+            world_slice = await agent._build_world_state_slice(trigger)
 
     assert len(world_slice["pending_orders"]) == 1
     mock_order_repo.get_pending_for_target.assert_called_once_with("warehouse-001")

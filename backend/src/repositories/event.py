@@ -68,6 +68,16 @@ class EventRepository:
         )
         return result.scalars().all()
 
+    async def order_has_active_truck_event(self, order_id: str) -> bool:
+        result = await self._session.execute(
+            select(ChaosEvent.id).where(
+                ChaosEvent.entity_type == "truck",
+                ChaosEvent.status == "active",
+                ChaosEvent.payload["order_id"].astext == order_id,
+            ).limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
     async def get_active_by_type(self, event_type: str) -> list[ChaosEvent]:
         result = await self._session.execute(
             select(ChaosEvent).where(

@@ -109,6 +109,34 @@ class TruckRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_idle_third_party_for_load(
+        self,
+        quantity_tons: float,
+        ref_lat: float,
+        ref_lng: float,
+        exclude_id: str | None = None,
+    ) -> Truck | None:
+        stmt = select(Truck).where(
+            Truck.truck_type == "terceiro",
+            Truck.status == "idle",
+            Truck.capacity_tons >= quantity_tons,
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(Truck.id != exclude_id)
+
+        result = await self._session.execute(stmt)
+        candidates = list(result.scalars().all())
+        if not candidates:
+            return None
+
+        def score(truck: Truck) -> tuple[float, float]:
+            waste = truck.capacity_tons - quantity_tons
+            dist = (truck.current_lat - ref_lat) ** 2 + (truck.current_lng - ref_lng) ** 2
+            return (waste, dist)
+
+        candidates.sort(key=score)
+        return candidates[0]
+
     async def get_all_in_maintenance(self) -> list[Truck]:
         result = await self._session.execute(
             select(Truck).where(Truck.status == "maintenance")

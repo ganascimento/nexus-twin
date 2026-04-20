@@ -22,15 +22,12 @@ class StoreAgent:
         self._db_session = db_session
         self._publisher = publisher
 
-    async def _build_world_state_slice(self, current_tick: int) -> WorldStateSlice:
+    async def _build_world_state_slice(self, trigger) -> WorldStateSlice:
         store = await StoreRepository(self._db_session).get_by_id(self._entity_id)
-        warehouses = await WarehouseRepository(self._db_session).get_all()
-        orders = await OrderRepository(self._db_session).get_pending_for_requester(
-            self._entity_id
-        )
-        events = await EventRepository(self._db_session).get_active_for_entity(
-            "store", self._entity_id
-        )
+
+        event_type = trigger.event_type
+        payload = trigger.payload or {}
+        material_of_interest = payload.get("material_id")
 
         stocks = [
             {
@@ -44,29 +41,42 @@ class StoreAgent:
 
         entity = {
             "id": store.id,
-            "name": store.name,
             "stocks": stocks,
+            "lat": store.lat,
+            "lng": store.lng,
         }
 
-        related_entities = [
-            {"id": w.id, "name": w.name, "region": w.region} for w in warehouses[:10]
-        ]
-
-        pending_orders = [
-            {"id": str(o.id), "requester_id": o.requester_id, "status": o.status}
-            for o in orders
-        ]
-
-        active_events = [
-            {"id": str(e.id), "event_type": e.event_type, "status": e.status}
-            for e in events
-        ]
+        if event_type in ("low_stock_trigger", "order_retry_eligible", "demand_spike"):
+            warehouses = await WarehouseRepository(self._db_session).get_all()
+            related_entities = []
+            for w in warehouses[:10]:
+                filtered_materials = [
+                    {
+                        "material_id": s.material_id,
+                        "stock": s.stock,
+                        "stock_reserved": s.stock_reserved,
+                    }
+                    for s in w.stocks
+                    if (not material_of_interest)
+                    or s.material_id == material_of_interest
+                ]
+                if not filtered_materials:
+                    continue
+                related_entities.append({
+                    "id": w.id,
+                    "region": w.region,
+                    "lat": w.lat,
+                    "lng": w.lng,
+                    "materials_available": filtered_materials,
+                })
+        else:
+            related_entities = []
 
         return WorldStateSlice(
             entity=entity,
             related_entities=related_entities,
-            active_events=active_events,
-            pending_orders=pending_orders,
+            active_events=[],
+            pending_orders=[],
         )
 
     def _build_effect_processor(self):
@@ -94,12 +104,13 @@ class StoreAgent:
         )
 
     async def run_cycle(self, trigger) -> None:
-        world_state_slice = await self._build_world_state_slice(trigger.tick)
+        world_state_slice = await self._build_world_state_slice(trigger)
 
         initial_state = {
             "entity_id": self._entity_id,
             "entity_type": "store",
             "trigger_event": trigger.event_type,
+            "trigger_payload": trigger.payload or {},
             "current_tick": trigger.tick,
             "world_state": world_state_slice,
             "messages": [],

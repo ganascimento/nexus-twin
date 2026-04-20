@@ -94,15 +94,21 @@ async def test_perceive_node_adds_system_message_with_entity_id():
 
 
 # ---------------------------------------------------------------------------
-# fast_path_node — Case A: hold rule (stock above HIGH_THRESHOLD)
+# fast_path_node — Factory: hold when all products at >= 85% of stock_max
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_fast_path_hold_when_stock_above_high_threshold():
-    entity = {"stock": {"tijolos": 90.0}, "stock_max": {"tijolos": 100.0}}
+async def test_fast_path_factory_hold_when_all_products_above_threshold():
+    entity = {
+        "products": [
+            {"material_id": "tijolos", "stock": 90.0, "stock_max": 100.0},
+            {"material_id": "cimento", "stock": 800.0, "stock_max": 900.0},
+        ]
+    }
     state = make_agent_state(
         entity_type="factory",
+        trigger_event="stock_trigger_factory",
         world_state=make_world_state_slice(entity=entity),
     )
 
@@ -112,27 +118,168 @@ async def test_fast_path_hold_when_stock_above_high_threshold():
     assert result["decision"]["action"] == "hold"
 
 
+@pytest.mark.asyncio
+async def test_fast_path_factory_skipped_when_one_product_below_threshold():
+    entity = {
+        "products": [
+            {"material_id": "tijolos", "stock": 90.0, "stock_max": 100.0},
+            {"material_id": "cimento", "stock": 100.0, "stock_max": 900.0},
+        ]
+    }
+    state = make_agent_state(
+        entity_type="factory",
+        trigger_event="stock_trigger_factory",
+        world_state=make_world_state_slice(entity=entity),
+    )
+
+    result = await fast_path_node(state)
+
+    assert result["fast_path_taken"] is False
+
+
+@pytest.mark.asyncio
+async def test_fast_path_factory_skipped_when_trigger_event_is_not_stock_poll():
+    entity = {
+        "products": [
+            {"material_id": "tijolos", "stock": 90.0, "stock_max": 100.0},
+        ]
+    }
+    state = make_agent_state(
+        entity_type="factory",
+        trigger_event="resupply_requested",
+        world_state=make_world_state_slice(entity=entity),
+    )
+
+    result = await fast_path_node(state)
+
+    assert result["fast_path_taken"] is False
+
+
 # ---------------------------------------------------------------------------
-# fast_path_node — Case B: emergency rule (stock below CRITICAL_THRESHOLD)
+# fast_path_node — Store: hold when all stocks >= 2x reorder_point
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_fast_path_emergency_when_stock_below_critical_threshold():
-    entity = {"stock": {"tijolos": 5.0}, "stock_max": {"tijolos": 100.0}}
+async def test_fast_path_store_hold_when_all_stocks_well_above_reorder_point():
+    entity = {
+        "stocks": [
+            {"material_id": "cimento", "stock": 25.0, "reorder_point": 10.0, "demand_rate": 5.0},
+            {"material_id": "tijolos", "stock": 3.0, "reorder_point": 1.0, "demand_rate": 0.4},
+        ]
+    }
     state = make_agent_state(
-        entity_type="warehouse",
+        entity_type="store",
+        trigger_event="low_stock_trigger",
         world_state=make_world_state_slice(entity=entity),
     )
 
     result = await fast_path_node(state)
 
     assert result["fast_path_taken"] is True
-    assert result["decision"]["action"] == "request_resupply"
+    assert result["decision"]["action"] == "hold"
+
+
+@pytest.mark.asyncio
+async def test_fast_path_store_skipped_when_any_stock_at_or_below_threshold():
+    entity = {
+        "stocks": [
+            {"material_id": "cimento", "stock": 25.0, "reorder_point": 10.0, "demand_rate": 5.0},
+            {"material_id": "tijolos", "stock": 1.0, "reorder_point": 1.0, "demand_rate": 0.4},
+        ]
+    }
+    state = make_agent_state(
+        entity_type="store",
+        trigger_event="low_stock_trigger",
+        world_state=make_world_state_slice(entity=entity),
+    )
+
+    result = await fast_path_node(state)
+
+    assert result["fast_path_taken"] is False
+
+
+@pytest.mark.asyncio
+async def test_fast_path_store_skipped_when_trigger_is_resupply_delivered():
+    entity = {
+        "stocks": [
+            {"material_id": "cimento", "stock": 25.0, "reorder_point": 10.0, "demand_rate": 5.0},
+        ]
+    }
+    state = make_agent_state(
+        entity_type="store",
+        trigger_event="resupply_delivered",
+        world_state=make_world_state_slice(entity=entity),
+    )
+
+    result = await fast_path_node(state)
+
+    assert result["fast_path_taken"] is False
 
 
 # ---------------------------------------------------------------------------
-# fast_path_node — Case C: truck degradation >= 0.95
+# fast_path_node — Warehouse: hold when all available >= 3x min_stock
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fast_path_warehouse_hold_when_all_available_above_threshold():
+    entity = {
+        "stocks": [
+            {"material_id": "cimento", "stock": 500.0, "stock_reserved": 50.0, "min_stock": 100.0},
+            {"material_id": "vergalhao", "stock": 2000.0, "stock_reserved": 0.0, "min_stock": 500.0},
+        ]
+    }
+    state = make_agent_state(
+        entity_type="warehouse",
+        trigger_event="stock_trigger_warehouse",
+        world_state=make_world_state_slice(entity=entity),
+    )
+
+    result = await fast_path_node(state)
+
+    assert result["fast_path_taken"] is True
+    assert result["decision"]["action"] == "hold"
+
+
+@pytest.mark.asyncio
+async def test_fast_path_warehouse_skipped_when_available_near_min_stock():
+    entity = {
+        "stocks": [
+            {"material_id": "cimento", "stock": 200.0, "stock_reserved": 50.0, "min_stock": 100.0},
+        ]
+    }
+    state = make_agent_state(
+        entity_type="warehouse",
+        trigger_event="stock_trigger_warehouse",
+        world_state=make_world_state_slice(entity=entity),
+    )
+
+    result = await fast_path_node(state)
+
+    assert result["fast_path_taken"] is False
+
+
+@pytest.mark.asyncio
+async def test_fast_path_warehouse_skipped_when_trigger_is_order_received():
+    entity = {
+        "stocks": [
+            {"material_id": "cimento", "stock": 500.0, "stock_reserved": 0.0, "min_stock": 100.0},
+        ]
+    }
+    state = make_agent_state(
+        entity_type="warehouse",
+        trigger_event="order_received",
+        world_state=make_world_state_slice(entity=entity),
+    )
+
+    result = await fast_path_node(state)
+
+    assert result["fast_path_taken"] is False
+
+
+# ---------------------------------------------------------------------------
+# fast_path_node — Truck: request_maintenance when degradation >= 0.95
 # ---------------------------------------------------------------------------
 
 
@@ -150,11 +297,6 @@ async def test_fast_path_request_maintenance_when_truck_degradation_at_limit():
     assert result["decision"]["action"] == "request_maintenance"
 
 
-# ---------------------------------------------------------------------------
-# fast_path_node — Case D: truck degradation below threshold (no rule fires)
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_fast_path_skipped_when_truck_degradation_below_limit():
     entity = {"degradation": 0.94}
@@ -169,16 +311,27 @@ async def test_fast_path_skipped_when_truck_degradation_below_limit():
 
 
 # ---------------------------------------------------------------------------
-# fast_path_node — Case E: ambiguity zone (stock between thresholds)
+# fast_path_node — missing or empty entity returns not-taken
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_fast_path_skipped_in_ambiguity_zone():
-    entity = {"stock": {"tijolos": 50.0}, "stock_max": {"tijolos": 100.0}}
+async def test_fast_path_factory_skipped_when_products_missing():
     state = make_agent_state(
         entity_type="factory",
-        world_state=make_world_state_slice(entity=entity),
+        world_state=make_world_state_slice(entity={"id": "factory-001"}),
+    )
+
+    result = await fast_path_node(state)
+
+    assert result["fast_path_taken"] is False
+
+
+@pytest.mark.asyncio
+async def test_fast_path_store_skipped_when_stocks_missing():
+    state = make_agent_state(
+        entity_type="store",
+        world_state=make_world_state_slice(entity={"id": "store-001"}),
     )
 
     result = await fast_path_node(state)
@@ -193,9 +346,14 @@ async def test_fast_path_skipped_in_ambiguity_zone():
 
 @pytest.mark.asyncio
 async def test_graph_fast_path_does_not_invoke_llm():
-    entity = {"stock": {"tijolos": 90.0}, "stock_max": {"tijolos": 100.0}}
+    entity = {
+        "products": [
+            {"material_id": "tijolos", "stock": 90.0, "stock_max": 100.0},
+        ]
+    }
     state = make_agent_state(
         entity_type="factory",
+        trigger_event="stock_trigger_factory",
         world_state=make_world_state_slice(entity=entity),
     )
 
@@ -409,6 +567,55 @@ def test_extract_json_from_last_message_raises_on_invalid_json():
     messages = [AIMessage(content="this is not json")]
     with pytest.raises(ValueError):
         extract_json_from_last_message(messages)
+
+
+def test_extract_json_strips_markdown_code_fence():
+    fenced = '```json\n{"action": "hold", "payload": null}\n```'
+    messages = [AIMessage(content=fenced)]
+    result = extract_json_from_last_message(messages)
+    assert result == {"action": "hold", "payload": None}
+
+
+def test_extract_json_strips_bare_code_fence_without_language():
+    fenced = '```\n{"action": "order_replenishment", "payload": {"qty": 5}}\n```'
+    messages = [AIMessage(content=fenced)]
+    result = extract_json_from_last_message(messages)
+    assert result == {"action": "order_replenishment", "payload": {"qty": 5}}
+
+
+def test_extract_json_recovers_when_surrounded_by_prose():
+    content = 'Sure — here is the decision:\n{"action": "hold"}\nLet me know if you need more.'
+    messages = [AIMessage(content=content)]
+    result = extract_json_from_last_message(messages)
+    assert result == {"action": "hold"}
+
+
+@pytest.mark.asyncio
+async def test_act_node_coerces_hold_empty_dict_payload_to_none_for_guardrail():
+    messages = [
+        AIMessage(
+            content='{"action": "hold", "payload": {}, "reasoning_summary": "nothing"}'
+        )
+    ]
+    state = make_agent_state(entity_type="warehouse", messages=messages)
+
+    mock_schema_instance = MagicMock()
+    mock_schema_class = MagicMock(return_value=mock_schema_instance)
+    mock_repo = AsyncMock()
+    mock_publisher = AsyncMock()
+
+    act_node_fn = _make_act_node_for_graph(
+        {"warehouse": mock_schema_class}, MagicMock(), mock_publisher
+    )
+
+    with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
+        result = await act_node_fn(state)
+
+    assert result["error"] is None
+    kwargs = mock_schema_class.call_args.kwargs
+    assert kwargs["payload"] is None
+    persisted_payload = mock_repo.create.call_args.args[0]["payload"]
+    assert persisted_payload == {}
 
 
 # ---------------------------------------------------------------------------

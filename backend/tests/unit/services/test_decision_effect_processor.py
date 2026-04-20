@@ -165,6 +165,8 @@ def processor(
     mock_warehouse_repo,
     mock_store_repo,
 ):
+    route_repo = AsyncMock()
+    route_repo.get_active_by_truck.return_value = None
     return DecisionEffectProcessor(
         session=AsyncMock(),
         order_repo=mock_order_repo,
@@ -176,7 +178,7 @@ def processor(
         truck_repo=mock_truck_repo,
         warehouse_repo=mock_warehouse_repo,
         store_repo=mock_store_repo,
-        route_repo=AsyncMock(),
+        route_repo=route_repo,
     )
 
 
@@ -544,7 +546,7 @@ async def test_refuse_contract_publishes_event(
     mock_order_repo.get_by_id.return_value = order
 
     next_truck = _make_mock_truck(id="truck_02", status="idle")
-    mock_truck_repo.get_all.return_value = [next_truck]
+    mock_truck_repo.get_idle_third_party_for_load = AsyncMock(return_value=next_truck)
 
     payload = {"order_id": "order_007", "reason": "high_degradation"}
 

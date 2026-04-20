@@ -250,13 +250,14 @@ async def test_tick_resilient_to_agent_errors(seeded_simulation_client):
     await session.commit()
 
     broken_llm = MagicMock()
-    broken_llm.bind_tools = MagicMock(side_effect=Exception("LLM is broken"))
+    broken_llm.bind_tools = MagicMock(return_value=broken_llm)
+    broken_llm.ainvoke = AsyncMock(side_effect=Exception("LLM is broken"))
 
     with patch("src.agents.base.ChatOpenAI", return_value=broken_llm):
         resp = await client.post("/simulation/tick")
         assert resp.status_code == 200
+        await asyncio.sleep(AGENT_SETTLE_TIME)
 
-    await asyncio.sleep(AGENT_SETTLE_TIME)
     await session.rollback()
 
     result = await session.execute(

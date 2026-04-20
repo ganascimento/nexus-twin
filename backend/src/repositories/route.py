@@ -24,9 +24,12 @@ class RouteRepository:
 
     async def get_active_by_truck(self, truck_id: str) -> Route | None:
         result = await self._session.execute(
-            select(Route).where(Route.truck_id == truck_id, Route.status == "active")
+            select(Route)
+            .where(Route.truck_id == truck_id, Route.status == "active")
+            .order_by(Route.started_at.desc())
+            .limit(1)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def update_eta_ticks(self, route_id: UUID, eta_ticks: int) -> None:
         await self._session.execute(

@@ -22,38 +22,28 @@ class TruckAgent:
         self._db_session = db_session
         self._publisher = publisher
 
-    async def _build_world_state_slice(self, current_tick: int) -> WorldStateSlice:
+    _CORE_ENTITY_FIELDS = (
+        "id", "truck_type", "capacity_tons", "degradation", "status",
+    )
+
+    async def _build_world_state_slice(self, trigger) -> WorldStateSlice:
         truck = await TruckRepository(self._db_session).get_by_id(self._entity_id)
-        events = await EventRepository(self._db_session).get_active_for_entity(
-            "truck", self._entity_id
-        )
+        event_type = trigger.event_type
 
-        entity = {
-            "id": truck.id,
-            "truck_type": truck.truck_type,
-            "degradation": truck.degradation,
-            "cargo": truck.cargo,
-            "status": truck.status,
-            "active_route_id": truck.active_route_id,
-        }
+        entity = {field: getattr(truck, field) for field in self._CORE_ENTITY_FIELDS}
 
-        related_entities = []
-        if truck.active_route_id is not None:
-            route = await RouteRepository(self._db_session).get_by_id(
-                truck.active_route_id
-            )
-            if route is not None:
-                related_entities.append({"id": str(route.id), "type": "route"})
-
-        active_events = [
-            {"id": str(e.id), "event_type": e.event_type, "status": e.status}
-            for e in events
-        ]
+        if event_type in ("route_blocked", "truck_arrived"):
+            entity["cargo"] = truck.cargo
+            entity["active_route_id"] = truck.active_route_id
+        if event_type == "truck_breakdown":
+            entity["breakdown_risk"] = truck.breakdown_risk
+            entity["current_lat"] = truck.current_lat
+            entity["current_lng"] = truck.current_lng
 
         return WorldStateSlice(
             entity=entity,
-            related_entities=related_entities,
-            active_events=active_events,
+            related_entities=[],
+            active_events=[],
             pending_orders=[],
         )
 
@@ -82,12 +72,13 @@ class TruckAgent:
         )
 
     async def run_cycle(self, trigger) -> None:
-        world_state_slice = await self._build_world_state_slice(trigger.tick)
+        world_state_slice = await self._build_world_state_slice(trigger)
 
         initial_state = {
             "entity_id": self._entity_id,
             "entity_type": "truck",
             "trigger_event": trigger.event_type,
+            "trigger_payload": trigger.payload or {},
             "current_tick": trigger.tick,
             "world_state": world_state_slice,
             "messages": [],

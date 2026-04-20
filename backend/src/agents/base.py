@@ -8,20 +8,26 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
+from loguru import logger
 
 from src.repositories.agent_decision import AgentDecisionRepository
 from src.simulation.publisher import publish_agent_decision
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
+OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "60"))
+DECISION_HISTORY_LIMIT = int(os.getenv("DECISION_HISTORY_LIMIT", "3"))
 
-HIGH_THRESHOLD = 0.85
-CRITICAL_THRESHOLD = 0.10
+STORE_HOLD_REORDER_MULTIPLIER = 2.0
+WAREHOUSE_HOLD_MIN_STOCK_MULTIPLIER = 3.0
+FACTORY_HOLD_STOCK_RATIO = 0.85
+TRUCK_MAINTENANCE_DEGRADATION = 0.95
 
-_EMERGENCY_ACTION_MAP = {
-    "store": "order_replenishment",
-    "warehouse": "request_resupply",
-    "factory": "start_production",
-}
+_STOCK_POLL_EVENTS = frozenset({
+    "low_stock_trigger",
+    "stock_trigger_warehouse",
+    "stock_trigger_factory",
+})
 
 
 class WorldStateSlice(TypedDict):
@@ -48,6 +54,7 @@ class AgentState(TypedDict):
     entity_id: str
     entity_type: str
     trigger_event: str
+    trigger_payload: dict
     current_tick: int
     messages: Annotated[list, add_messages]
     decision_history: list
@@ -67,22 +74,51 @@ def has_tool_calls(state_or_message) -> bool:
     return bool(getattr(last, "tool_calls", None))
 
 
+def _strip_markdown_json_fence(text: str) -> str:
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return stripped
+    newline = stripped.find("\n")
+    if newline == -1:
+        return stripped
+    body = stripped[newline + 1:]
+    if body.rstrip().endswith("```"):
+        body = body.rstrip()[: -3]
+    return body.strip()
+
+
+def _parse_json_tolerant(text: str) -> dict:
+    cleaned = _strip_markdown_json_fence(text)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        first = cleaned.find("{")
+        last = cleaned.rfind("}")
+        if first == -1 or last == -1 or last <= first:
+            raise ValueError(f"Invalid JSON in last message: {text!r}")
+        try:
+            return json.loads(cleaned[first : last + 1])
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in last message: {e}")
+
+
 def extract_json_from_last_message(messages: list) -> dict:
     last = messages[-1]
     content = last.content
     if isinstance(content, str):
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in last message: {e}")
+        return _parse_json_tolerant(content)
     if isinstance(content, list):
         for item in content:
             if isinstance(item, dict) and item.get("type") == "text":
-                try:
-                    return json.loads(item["text"])
-                except json.JSONDecodeError as e:
-                    raise ValueError(f"Invalid JSON in last message: {e}")
+                return _parse_json_tolerant(item["text"])
     raise ValueError("No valid JSON found in last message")
+
+
+_COMPACT_JSON_SEPARATORS = (",", ":")
+
+
+def _dumps_compact(obj) -> str:
+    return json.dumps(obj, default=str, separators=_COMPACT_JSON_SEPARATORS)
 
 
 def _format_world_state_summary(world_state: WorldStateSlice) -> str:
@@ -91,13 +127,13 @@ def _format_world_state_summary(world_state: WorldStateSlice) -> str:
     active_events = world_state.get("active_events", [])
     pending_orders = world_state.get("pending_orders", [])
 
-    parts = [f"Entity: {json.dumps(entity, default=str)}"]
+    parts = [f"Entity: {_dumps_compact(entity)}"]
     if related:
-        parts.append(f"Related entities: {json.dumps(related, default=str)}")
+        parts.append(f"Related entities: {_dumps_compact(related)}")
     if active_events:
-        parts.append(f"Active events: {json.dumps(active_events, default=str)}")
+        parts.append(f"Active events: {_dumps_compact(active_events)}")
     if pending_orders:
-        parts.append(f"Pending orders: {json.dumps(pending_orders, default=str)}")
+        parts.append(f"Pending orders: {_dumps_compact(pending_orders)}")
     return "\n".join(parts)
 
 
@@ -107,7 +143,7 @@ def _format_decision_history(history: list) -> str:
     entries = []
     for h in history:
         if isinstance(h, dict):
-            entries.append(json.dumps(h, default=str))
+            entries.append(_dumps_compact(h))
         else:
             entry = {
                 "tick": getattr(h, "tick", None),
@@ -115,14 +151,16 @@ def _format_decision_history(history: list) -> str:
                 "event_type": getattr(h, "event_type", None),
                 "payload": getattr(h, "payload", {}),
             }
-            entries.append(json.dumps(entry, default=str))
+            entries.append(_dumps_compact(entry))
     return "\n".join(entries)
 
 
 def _make_perceive_node(db_session):
     async def perceive_node(state: AgentState) -> dict:
         repo = AgentDecisionRepository(db_session)
-        history = await repo.get_recent_by_entity(state["entity_id"], limit=10)
+        history = await repo.get_recent_by_entity(
+            state["entity_id"], limit=DECISION_HISTORY_LIMIT
+        )
 
         prompt_path = (
             pathlib.Path(__file__).parent / "prompts" / f"{state['entity_type']}.md"
@@ -130,6 +168,11 @@ def _make_perceive_node(db_session):
         prompt = prompt_path.read_text()
         prompt = prompt.replace("{entity_id}", state["entity_id"])
         prompt = prompt.replace("{trigger_event}", state["trigger_event"])
+        trigger_payload = state.get("trigger_payload") or {}
+        prompt = prompt.replace(
+            "{trigger_payload}",
+            _dumps_compact(trigger_payload) if trigger_payload else "(none)",
+        )
         prompt = prompt.replace(
             "{world_state_summary}",
             _format_world_state_summary(state["world_state"]),
@@ -151,54 +194,108 @@ def _make_perceive_node(db_session):
     return perceive_node
 
 
+def _hold_decision(reason: str) -> dict:
+    return {
+        "fast_path_taken": True,
+        "decision": {
+            "action": "hold",
+            "reasoning_summary": f"fast-path: {reason}",
+            "payload": None,
+        },
+    }
+
+
+def _store_fast_path_hold(entity: dict) -> dict | None:
+    stocks = entity.get("stocks")
+    if not stocks:
+        return None
+    for s in stocks:
+        reorder_point = s.get("reorder_point") or 0
+        stock = s.get("stock") or 0
+        demand_rate = s.get("demand_rate") or 0
+        if reorder_point <= 0 or demand_rate <= 0:
+            return None
+        if stock < reorder_point * STORE_HOLD_REORDER_MULTIPLIER:
+            return None
+    return _hold_decision(
+        f"all materials stock >= {STORE_HOLD_REORDER_MULTIPLIER}x reorder_point"
+    )
+
+
+def _warehouse_fast_path_hold(entity: dict) -> dict | None:
+    stocks = entity.get("stocks")
+    if not stocks:
+        return None
+    for s in stocks:
+        min_stock = s.get("min_stock") or 0
+        stock = s.get("stock") or 0
+        reserved = s.get("stock_reserved") or 0
+        available = stock - reserved
+        if min_stock <= 0:
+            return None
+        if available < min_stock * WAREHOUSE_HOLD_MIN_STOCK_MULTIPLIER:
+            return None
+    return _hold_decision(
+        f"all materials available >= {WAREHOUSE_HOLD_MIN_STOCK_MULTIPLIER}x min_stock"
+    )
+
+
+def _factory_fast_path_hold(entity: dict) -> dict | None:
+    products = entity.get("products")
+    if not products:
+        return None
+    for p in products:
+        stock_max = p.get("stock_max") or 0
+        stock = p.get("stock") or 0
+        if stock_max <= 0:
+            return None
+        if stock < stock_max * FACTORY_HOLD_STOCK_RATIO:
+            return None
+    return _hold_decision(
+        f"all products stock >= {FACTORY_HOLD_STOCK_RATIO:.0%} of stock_max"
+    )
+
+
+def _truck_fast_path(entity: dict) -> dict | None:
+    if entity.get("degradation", 0.0) >= TRUCK_MAINTENANCE_DEGRADATION:
+        return {
+            "fast_path_taken": True,
+            "decision": {
+                "action": "request_maintenance",
+                "reasoning_summary": (
+                    f"fast-path: degradation >= {TRUCK_MAINTENANCE_DEGRADATION:.0%}, "
+                    "maintenance required"
+                ),
+                "payload": {"current_degradation": entity.get("degradation", 1.0)},
+            },
+        }
+    return None
+
+
+_FAST_PATH_BY_ENTITY_TYPE = {
+    "store": _store_fast_path_hold,
+    "warehouse": _warehouse_fast_path_hold,
+    "factory": _factory_fast_path_hold,
+    "truck": _truck_fast_path,
+}
+
+
 async def fast_path_node(state: AgentState) -> dict:
     entity = state["world_state"]["entity"]
     entity_type = state["entity_type"]
+    trigger_event = state.get("trigger_event", "")
 
     if entity_type == "truck":
-        if entity.get("degradation", 0.0) >= 0.95:
-            return {
-                **state,
-                "fast_path_taken": True,
-                "decision": {
-                    "action": "request_maintenance",
-                    "reasoning_summary": "fast-path: degradation >= 95%, maintenance required",
-                    "payload": {"current_degradation": entity.get("degradation", 1.0)},
-                },
-            }
+        result = _truck_fast_path(entity)
+    elif trigger_event in _STOCK_POLL_EVENTS:
+        resolver = _FAST_PATH_BY_ENTITY_TYPE.get(entity_type)
+        result = resolver(entity) if resolver is not None else None
+    else:
+        result = None
+
+    if result is None:
         return {**state, "fast_path_taken": False}
-
-    stock = entity.get("stock", {})
-    stock_max = entity.get("stock_max", {})
-
-    for material_id, qty in stock.items():
-        max_qty = stock_max.get(material_id, qty)
-        if max_qty == 0:
-            continue
-        ratio = qty / max_qty
-        if ratio > HIGH_THRESHOLD:
-            return {
-                **state,
-                "fast_path_taken": True,
-                "decision": {
-                    "action": "hold",
-                    "reasoning_summary": f"fast-path: stock ratio {ratio:.0%} above {HIGH_THRESHOLD:.0%} threshold",
-                    "payload": None,
-                },
-            }
-        if ratio < CRITICAL_THRESHOLD:
-            emergency_action = _EMERGENCY_ACTION_MAP.get(entity_type, "hold")
-            return {
-                **state,
-                "fast_path_taken": True,
-                "decision": {
-                    "action": emergency_action,
-                    "reasoning_summary": f"fast-path: stock ratio {ratio:.0%} below {CRITICAL_THRESHOLD:.0%} critical threshold",
-                    "payload": None,
-                },
-            }
-
-    return {**state, "fast_path_taken": False}
+    return {**state, **result}
 
 
 def _make_decide_node(llm, tools):
@@ -227,6 +324,9 @@ def _make_act_node_for_graph(
             else:
                 raw = extract_json_from_last_message(state["messages"])
 
+            if raw.get("action") == "hold" and raw.get("payload") == {}:
+                raw["payload"] = None
+
             entity_type = state["entity_type"]
             if entity_type in schema_map:
                 schema_map[entity_type](**raw)
@@ -239,7 +339,7 @@ def _make_act_node_for_graph(
                     "event_type": state.get("trigger_event", "unknown"),
                     "tick": state["current_tick"],
                     "action": raw.get("action"),
-                    "payload": raw.get("payload", {}),
+                    "payload": raw.get("payload") or {},
                 }
             )
 
@@ -263,6 +363,13 @@ def _make_act_node_for_graph(
             )
             return {**state, "decision": raw, "error": None}
         except Exception as e:
+            logger.exception(
+                "Agent act_node failed | entity_type={} entity_id={} event={} raw={}",
+                state.get("entity_type"),
+                state.get("entity_id"),
+                state.get("trigger_event"),
+                locals().get("raw"),
+            )
             return {**state, "decision": None, "error": str(e)}
 
     return _act_node
@@ -276,7 +383,11 @@ def build_agent_graph(
     publisher_instance,
     decision_effect_processor=None,
 ):
-    llm = ChatOpenAI(model=OPENAI_MODEL)
+    llm = ChatOpenAI(
+        model=OPENAI_MODEL,
+        max_retries=OPENAI_MAX_RETRIES,
+        timeout=OPENAI_TIMEOUT_SECONDS,
+    )
 
     perceive_fn = _make_perceive_node(db_session)
     decide_node = _make_decide_node(llm, tools)

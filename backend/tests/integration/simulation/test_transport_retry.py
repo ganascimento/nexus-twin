@@ -85,7 +85,7 @@ async def test_transport_retry_when_no_truck(seeded_simulation_client, mock_valh
         requester_id="store-001",
         target_id="warehouse-002",
         material_id="cimento",
-        quantity_tons=30.0,
+        quantity_tons=15.0,
     )
     await session.commit()
 
@@ -150,7 +150,7 @@ async def test_confirmed_order_not_lost(seeded_simulation_client, mock_valhalla)
         requester_id="store-001",
         target_id="warehouse-002",
         material_id="cimento",
-        quantity_tons=30.0,
+        quantity_tons=15.0,
     )
     await session.execute(
         text(

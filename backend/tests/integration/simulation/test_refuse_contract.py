@@ -17,7 +17,7 @@ STORE_ORDER = {
     "action": "order_replenishment",
     "payload": {
         "material_id": "cimento",
-        "quantity_tons": 30.0,
+        "quantity_tons": 15.0,
         "from_warehouse_id": "warehouse-002",
     },
     "reasoning_summary": "Low",
@@ -49,7 +49,7 @@ async def _setup_confirmed_order_with_proposal(client, session):
 
     warehouse_confirm = {
         "action": "confirm_order",
-        "payload": {"order_id": order_id, "quantity_tons": 30.0, "eta_ticks": 3},
+        "payload": {"order_id": order_id, "quantity_tons": 15.0, "eta_ticks": 3},
         "reasoning_summary": "Confirm",
     }
     llm_t2 = make_entity_routing_llm(**{"warehouse-002": [warehouse_confirm]})

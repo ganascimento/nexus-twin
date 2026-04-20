@@ -8,6 +8,47 @@ from src.world.physics import calculate_eta_ticks
 
 VALHALLA_URL = os.getenv("VALHALLA_URL", "http://localhost:8002")
 
+_VALHALLA_POLYLINE_PRECISION = 1e-6
+
+
+def _decode_polyline6(encoded: str) -> list[list[float]]:
+    coords: list[list[float]] = []
+    index = 0
+    lat = 0
+    lng = 0
+    length = len(encoded)
+    while index < length:
+        result = 0
+        shift = 0
+        while True:
+            if index >= length:
+                raise ValueError("Truncated polyline")
+            byte = ord(encoded[index]) - 63
+            index += 1
+            result |= (byte & 0x1F) << shift
+            shift += 5
+            if byte < 0x20:
+                break
+        dlat = ~(result >> 1) if result & 1 else result >> 1
+        lat += dlat
+
+        result = 0
+        shift = 0
+        while True:
+            if index >= length:
+                raise ValueError("Truncated polyline")
+            byte = ord(encoded[index]) - 63
+            index += 1
+            result |= (byte & 0x1F) << shift
+            shift += 5
+            if byte < 0x20:
+                break
+        dlng = ~(result >> 1) if result & 1 else result >> 1
+        lng += dlng
+
+        coords.append([lng * _VALHALLA_POLYLINE_PRECISION, lat * _VALHALLA_POLYLINE_PRECISION])
+    return coords
+
 
 class RouteService:
     def __init__(self, route_repo: RouteRepository):
@@ -87,9 +128,24 @@ class RouteService:
 
         shape = legs[0].get("shape", [])
         distance_km = data["trip"]["summary"]["length"]
-        path = [[p["lon"], p["lat"]] for p in shape] if isinstance(shape[0], dict) else shape
+        path = self._normalize_valhalla_shape(shape)
+        if len(path) < 2:
+            raise ValueError(f"Valhalla returned degenerate shape ({len(path)} points)")
 
         return path, distance_km
+
+    @staticmethod
+    def _normalize_valhalla_shape(shape) -> list[list[float]]:
+        if isinstance(shape, str):
+            return _decode_polyline6(shape)
+        if not shape:
+            return []
+        first = shape[0]
+        if isinstance(first, dict):
+            return [[p["lon"], p["lat"]] for p in shape]
+        if isinstance(first, (list, tuple)) and len(first) >= 2:
+            return [[float(p[0]), float(p[1])] for p in shape]
+        raise ValueError(f"Unrecognized Valhalla shape format: {type(first).__name__}")
 
     def _generate_timestamps(
         self, path: list, start_tick: int, eta_ticks: int

@@ -109,10 +109,16 @@ def make_combined_routing_llm(by_entity=None, by_agent=None):
 
 
 async def advance_ticks_with_settle(client, n: int, settle_time: float = AGENT_SETTLE_TIME, inter: float = 0.1):
+    service = getattr(app.state, "simulation_service", None)
+    engine = getattr(service, "_engine", None) if service is not None else None
     for _ in range(n):
         await client.post("/simulation/tick")
         await asyncio.sleep(inter)
+        if engine is not None:
+            await engine.drain_pending_agents()
     await asyncio.sleep(settle_time)
+    if engine is not None:
+        await engine.drain_pending_agents()
 
 
 async def get_order_status(session, order_id) -> str | None:
@@ -180,6 +186,7 @@ async def simulation_client(async_engine, async_session, mock_redis):
     ) as c:
         yield c
 
+    await engine.drain_pending_agents(timeout=5.0)
     app.dependency_overrides.clear()
     if original_state is not None:
         app.state.simulation_service = original_state
@@ -263,6 +270,7 @@ async def seeded_simulation_client(async_engine, mock_redis):
         ) as c:
             yield c, test_session, mock_redis
     finally:
+        await engine.drain_pending_agents()
         await test_session.close()
         app.dependency_overrides.clear()
         if original_state is not None:
@@ -293,4 +301,25 @@ def no_random_breakdown(request):
         yield
         return
     with patch("src.simulation.engine.roll_breakdown", return_value=False):
+        yield
+
+
+class _NoOpenAIStub:
+    def bind_tools(self, tools):
+        return self
+
+    async def ainvoke(self, messages, *args, **kwargs):
+        raise RuntimeError(
+            "Integration test invoked ChatOpenAI without an explicit mock. "
+            "Use `with patch('src.agents.base.ChatOpenAI', return_value=<fake>)` "
+            "inside the test."
+        )
+
+    def invoke(self, messages, *args, **kwargs):
+        raise RuntimeError("unmocked ChatOpenAI.invoke")
+
+
+@pytest.fixture(autouse=True)
+def _block_real_openai_calls():
+    with patch("src.agents.base.ChatOpenAI", return_value=_NoOpenAIStub()):
         yield

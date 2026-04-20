@@ -648,3 +648,158 @@ async def test_semaphore_limits_agent_concurrency():
 
     assert max_concurrent == 1
     assert len(results) == 2
+
+
+# ---------------------------------------------------------------------------
+# SimulationEngine._is_valid_path — guard against corrupted route.path JSONB
+# ---------------------------------------------------------------------------
+
+
+def test_is_valid_path_accepts_list_of_pairs():
+    assert SimulationEngine._is_valid_path([[-46.6, -23.5], [-46.7, -23.4]]) is True
+
+
+def test_is_valid_path_rejects_string_polyline_encoded():
+    assert SimulationEngine._is_valid_path("podfk@fhimxAbUgl") is False
+
+
+def test_is_valid_path_rejects_none_and_empty():
+    assert SimulationEngine._is_valid_path(None) is False
+    assert SimulationEngine._is_valid_path([]) is False
+    assert SimulationEngine._is_valid_path([[-46.6, -23.5]]) is False
+
+
+def test_is_valid_path_rejects_malformed_points():
+    assert SimulationEngine._is_valid_path([[-46.6]]) is False
+    assert SimulationEngine._is_valid_path([[-46.6, -23.5], "junk"]) is False
+
+
+# ---------------------------------------------------------------------------
+# In-flight agent dedup — skip trigger when previous cycle still running
+# ---------------------------------------------------------------------------
+
+
+def _schedule_trigger(engine, event, agent_fn):
+    """Mirror the dispatch+dedup block from SimulationEngine.run_tick."""
+    key = (event.entity_type, event.entity_id)
+    existing = engine._in_flight_by_entity.get(key)
+    if existing is not None:
+        existing_task, started_tick = existing
+        if not existing_task.done() and started_tick < engine._tick:
+            return None
+    task = asyncio.create_task(engine._dispatch_agent(agent_fn, event))
+    engine._pending_agent_tasks.add(task)
+    engine._in_flight_by_entity[key] = (task, engine._tick)
+    task.add_done_callback(engine._pending_agent_tasks.discard)
+    task.add_done_callback(lambda t, k=key: engine._clear_in_flight_if(k, t))
+    return task
+
+
+@pytest.mark.asyncio
+async def test_dispatch_dedup_skips_second_trigger_for_same_entity_while_in_flight():
+    from src.simulation.events import SimulationEvent
+
+    engine = make_engine()
+    gate = asyncio.Event()
+    call_count = {"n": 0}
+
+    async def slow_agent(_event):
+        call_count["n"] += 1
+        await gate.wait()
+
+    def event_at(tick):
+        return SimulationEvent(
+            event_type="low_stock_trigger", source="engine",
+            entity_type="store", entity_id="store-001",
+            payload={}, tick=tick,
+        )
+
+    engine._tick = 1
+    t1 = _schedule_trigger(engine, event_at(1), slow_agent)
+    await asyncio.sleep(0.01)
+    assert t1 is not None
+    assert call_count["n"] == 1
+
+    engine._tick = 2
+    t2 = _schedule_trigger(engine, event_at(2), slow_agent)
+    assert t2 is None, "dedup must skip while previous tick's task still running"
+    assert call_count["n"] == 1
+
+    gate.set()
+    await engine.drain_pending_agents()
+
+    gate.clear()
+    engine._tick = 3
+    t3 = _schedule_trigger(engine, event_at(3), slow_agent)
+    await asyncio.sleep(0.01)
+    assert t3 is not None, "after previous task completed, next trigger must fire"
+    assert call_count["n"] == 2
+
+    gate.set()
+    await engine.drain_pending_agents()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_dedup_allows_multiple_triggers_same_entity_same_tick():
+    from src.simulation.events import SimulationEvent
+
+    engine = make_engine()
+    gate = asyncio.Event()
+    call_count = {"n": 0}
+
+    async def slow_agent(_event):
+        call_count["n"] += 1
+        await gate.wait()
+
+    engine._tick = 5
+    ev_low = SimulationEvent(
+        event_type="low_stock_trigger", source="engine",
+        entity_type="store", entity_id="store-001",
+        payload={}, tick=5,
+    )
+    ev_resupply = SimulationEvent(
+        event_type="resupply_delivered", source="engine",
+        entity_type="store", entity_id="store-001",
+        payload={"material_id": "cimento"}, tick=5,
+    )
+
+    t1 = _schedule_trigger(engine, ev_low, slow_agent)
+    t2 = _schedule_trigger(engine, ev_resupply, slow_agent)
+    await asyncio.sleep(0.01)
+    assert t1 is not None and t2 is not None
+    assert call_count["n"] == 2, "both triggers for same entity within same tick must dispatch"
+
+    gate.set()
+    await engine.drain_pending_agents()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_dedup_allows_different_entities_concurrently():
+    from src.simulation.events import SimulationEvent
+
+    engine = make_engine()
+    gate = asyncio.Event()
+    call_count = {"n": 0}
+
+    async def slow_agent(_event):
+        call_count["n"] += 1
+        await gate.wait()
+
+    ev_a = SimulationEvent(
+        event_type="low_stock_trigger", source="engine",
+        entity_type="store", entity_id="store-001",
+        payload={}, tick=1,
+    )
+    ev_b = SimulationEvent(
+        event_type="low_stock_trigger", source="engine",
+        entity_type="store", entity_id="store-002",
+        payload={}, tick=1,
+    )
+
+    _schedule_trigger(engine, ev_a, slow_agent)
+    _schedule_trigger(engine, ev_b, slow_agent)
+    await asyncio.sleep(0.01)
+    assert call_count["n"] == 2, "different entities should run concurrently"
+
+    gate.set()
+    await engine.drain_pending_agents()

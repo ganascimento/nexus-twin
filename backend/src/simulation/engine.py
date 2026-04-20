@@ -59,6 +59,8 @@ class SimulationEngine:
         self._semaphore: asyncio.Semaphore = asyncio.Semaphore(
             int(os.getenv("MAX_AGENT_WORKERS", "4"))
         )
+        self._pending_agent_tasks: set[asyncio.Task] = set()
+        self._in_flight_by_entity: dict[tuple[str, str], tuple[asyncio.Task, int]] = {}
 
     async def start(self) -> None:
         self._running = True
@@ -90,8 +92,46 @@ class SimulationEngine:
         await self._apply_physics(world_state)
         triggers = await self._evaluate_triggers(world_state)
         for agent_fn, event in triggers:
-            asyncio.create_task(self._dispatch_agent(agent_fn, event))
+            entity_key = (
+                getattr(event, "entity_type", None),
+                getattr(event, "entity_id", None),
+            )
+            existing = self._in_flight_by_entity.get(entity_key)
+            if existing is not None:
+                existing_task, started_tick = existing
+                if not existing_task.done() and started_tick < self._tick:
+                    logger.debug(
+                        "Skipping trigger for {} {} event={}: cycle from tick {} still running",
+                        entity_key[0], entity_key[1],
+                        getattr(event, "event_type", None), started_tick,
+                    )
+                    continue
+            task = asyncio.create_task(self._dispatch_agent(agent_fn, event))
+            self._pending_agent_tasks.add(task)
+            self._in_flight_by_entity[entity_key] = (task, self._tick)
+            task.add_done_callback(self._pending_agent_tasks.discard)
+            task.add_done_callback(
+                lambda t, k=entity_key: self._clear_in_flight_if(k, t)
+            )
         await publish_world_state(world_state, self._tick, self._publisher_redis_client)
+
+    def _clear_in_flight_if(self, key, task) -> None:
+        entry = self._in_flight_by_entity.get(key)
+        if entry is not None and entry[0] is task:
+            self._in_flight_by_entity.pop(key, None)
+
+    async def drain_pending_agents(self, timeout: float | None = None) -> None:
+        if not self._pending_agent_tasks:
+            return
+        pending = list(self._pending_agent_tasks)
+        if timeout is None:
+            await asyncio.gather(*pending, return_exceptions=True)
+        else:
+            _, not_done = await asyncio.wait(pending, timeout=timeout)
+            for task in not_done:
+                task.cancel()
+            if not_done:
+                await asyncio.gather(*not_done, return_exceptions=True)
 
     async def _apply_physics(self, world_state: WorldState) -> None:
         async with self._session_factory() as session:
@@ -158,6 +198,17 @@ class SimulationEngine:
                 route = await route_repo.get_active_by_truck(truck.id)
                 if route is None:
                     logger.warning("Truck {} is IN_TRANSIT but has no active route", truck.id)
+                    continue
+
+                if not self._is_valid_path(route.path):
+                    logger.error(
+                        "Truck {} has route {} with malformed path ({!r}); marking interrupted",
+                        truck.id, route.id, type(route.path).__name__,
+                    )
+                    await route_repo.update_status(route.id, "interrupted")
+                    await truck_repo.set_cargo(truck.id, None)
+                    await truck_repo.set_active_route(truck.id, None)
+                    await truck_repo.update_status(truck.id, "idle")
                     continue
 
                 new_eta = max(0, route.eta_ticks - 1)
@@ -375,6 +426,15 @@ class SimulationEngine:
             return await warehouse_repo.get_by_id(origin_id) is not None
         if origin_type == "factory":
             return await factory_repo.get_by_id(origin_id) is not None
+        return True
+
+    @staticmethod
+    def _is_valid_path(path) -> bool:
+        if not isinstance(path, list) or len(path) < 2:
+            return False
+        for point in path:
+            if not isinstance(point, (list, tuple)) or len(point) < 2:
+                return False
         return True
 
     def _interpolate_position(
@@ -651,6 +711,9 @@ class SimulationEngine:
 
             orphaned_orders = await order_repo.get_confirmed_without_route(limit=10)
             for order in orphaned_orders:
+                if await event_repo.order_has_active_truck_event(str(order.id)):
+                    continue
+
                 truck = None
                 event_type = None
 
@@ -663,23 +726,15 @@ class SimulationEngine:
                     target_entity = self._find_entity_in_world_state(
                         world_state, order.target_type, order.target_id
                     )
-                    if target_entity:
-                        truck = await truck_repo.get_nearest_idle_third_party(
-                            target_entity.lat, target_entity.lng
-                        )
-                    else:
-                        truck = await truck_repo.get_nearest_idle_third_party(0.0, 0.0)
+                    ref_lat = target_entity.lat if target_entity else 0.0
+                    ref_lng = target_entity.lng if target_entity else 0.0
+                    truck = await truck_repo.get_idle_third_party_for_load(
+                        order.quantity_tons, ref_lat, ref_lng
+                    )
                     if truck:
                         event_type = "contract_proposal"
 
                 if truck is None:
-                    continue
-
-                existing = await event_repo.get_active_for_entity("truck", truck.id)
-                if any(
-                    (e.payload or {}).get("order_id") == str(order.id)
-                    for e in existing
-                ):
                     continue
 
                 await event_repo.create({
@@ -741,5 +796,11 @@ class SimulationEngine:
             if agent_fn is not None:
                 try:
                     await agent_fn(event)
-                except Exception as exc:
-                    logger.error("Agent dispatch failed for {}: {}", event, exc)
+                except Exception:
+                    logger.exception(
+                        "Agent dispatch failed | entity_type={} entity_id={} event_type={} tick={}",
+                        getattr(event, "entity_type", None),
+                        getattr(event, "entity_id", None),
+                        getattr(event, "event_type", None),
+                        getattr(event, "tick", None),
+                    )
