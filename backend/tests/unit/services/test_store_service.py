@@ -91,6 +91,8 @@ async def test_update_store_raises_not_found_when_store_missing(service, repo):
 async def test_delete_store_calls_cancel_orders_from_with_correct_args(
     service, repo, order_service
 ):
+    order_service.cancel_orders_from.return_value = []
+    order_service.cancel_orders_targeting.return_value = []
     await service.delete_store("store-001")
     order_service.cancel_orders_from.assert_called_once_with(
         requester_id="store-001", reason="requester_deleted"
@@ -100,6 +102,8 @@ async def test_delete_store_calls_cancel_orders_from_with_correct_args(
 
 @pytest.mark.asyncio
 async def test_delete_store_publishes_entity_removed_event(service, repo, order_service, publisher):
+    order_service.cancel_orders_from.return_value = []
+    order_service.cancel_orders_targeting.return_value = []
     await service.delete_store("store-001")
     publisher.publish_event.assert_called_once_with(
         "entity_removed", {"entity_type": "store", "entity_id": "store-001"}

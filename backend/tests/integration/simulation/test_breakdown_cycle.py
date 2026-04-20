@@ -109,6 +109,7 @@ async def _count_breakdown_events(session, truck_id: str):
     return result.scalar_one()
 
 
+@pytest.mark.allow_random_breakdown
 async def test_breakdown_stops_truck(seeded_simulation_client, mock_valhalla):
     client, session, mock_redis = seeded_simulation_client
 
@@ -131,6 +132,7 @@ async def test_breakdown_stops_truck(seeded_simulation_client, mock_valhalla):
     assert breakdown_count >= 1
 
 
+@pytest.mark.allow_random_breakdown
 async def test_broken_truck_cargo_not_lost(seeded_simulation_client, mock_valhalla):
     client, session, mock_redis = seeded_simulation_client
 

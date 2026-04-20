@@ -83,11 +83,24 @@ def make_warehouse(stocks: dict | None = None, **kwargs) -> Warehouse:
     return Warehouse(**defaults)
 
 
+def _make_mock_session():
+    session = MagicMock()
+    session.execute = AsyncMock(return_value=MagicMock())
+    session.flush = AsyncMock()
+    session.refresh = AsyncMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    session.begin_nested = AsyncMock()
+    session.close = AsyncMock()
+    session.get = AsyncMock()
+    return session
+
+
 def make_engine(redis_client=None, session_factory=None, max_workers=4):
     rc = redis_client or AsyncMock()
 
     if session_factory is None:
-        mock_session = AsyncMock()
+        mock_session = _make_mock_session()
 
         @asynccontextmanager
         async def _session_factory():

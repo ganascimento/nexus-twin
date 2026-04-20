@@ -57,10 +57,18 @@ async def test_update_status_does_not_set_completed_at_when_interrupted():
 # ---------------------------------------------------------------------------
 
 
+def _make_session():
+    session = MagicMock()
+    session.execute = AsyncMock()
+    session.flush = AsyncMock()
+    session.refresh = AsyncMock()
+    return session
+
+
 @pytest.mark.asyncio
 async def test_route_create_with_order_id():
     order_id = uuid.uuid4()
-    session = AsyncMock()
+    session = _make_session()
 
     repo = RouteRepository(session)
     data = {
@@ -86,7 +94,7 @@ async def test_route_create_with_order_id():
 
 @pytest.mark.asyncio
 async def test_route_create_without_order_id():
-    session = AsyncMock()
+    session = _make_session()
 
     repo = RouteRepository(session)
     data = {

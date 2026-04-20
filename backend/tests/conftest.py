@@ -1,5 +1,6 @@
 import asyncio
 import os
+import pathlib
 import threading
 
 import pytest
@@ -8,6 +9,8 @@ from alembic.config import Config
 from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from testcontainers.postgres import PostgresContainer
+
+BACKEND_DIR = pathlib.Path(__file__).resolve().parent.parent
 
 
 def _asyncpg_url(url: str) -> str:
@@ -47,7 +50,9 @@ def db_url(postgres_container):
 @pytest.fixture(scope="session")
 def alembic_cfg(db_url):
     os.environ["DATABASE_URL"] = db_url
-    return Config("alembic.ini")
+    cfg = Config(str(BACKEND_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND_DIR / "src" / "database" / "migrations"))
+    return cfg
 
 
 @pytest.fixture(scope="session")

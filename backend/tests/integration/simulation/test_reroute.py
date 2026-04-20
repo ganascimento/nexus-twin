@@ -61,7 +61,7 @@ async def _setup_truck_in_transit(session):
     )
     await session.execute(
         text(
-            "UPDATE trucks SET status='in_transit', degradation=0.20, breakdown_risk=0.05, "
+            "UPDATE trucks SET status='in_transit', degradation=0.0, breakdown_risk=0.0, "
             "cargo=CAST(:cargo AS jsonb), active_route_id=:rid WHERE id='truck-004'"
         ),
         {"cargo": json.dumps(_INITIAL_CARGO), "rid": route_id},

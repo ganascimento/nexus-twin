@@ -4,10 +4,11 @@ from src.services import ConflictError, NotFoundError
 
 
 class WarehouseService:
-    def __init__(self, repo, order_repo, publisher):
+    def __init__(self, repo, order_repo, publisher, factory_repo=None):
         self._repo = repo
         self._order_repo = order_repo
         self._publisher = publisher
+        self._factory_repo = factory_repo
 
     async def list_warehouses(self):
         return await self._repo.get_all()
@@ -36,11 +37,30 @@ class WarehouseService:
         warehouse = await self._repo.get_by_id(id)
         if warehouse is None:
             raise NotFoundError(f"Warehouse '{id}' not found")
+        cancelled_as_requester = await self._order_repo.bulk_cancel_by_requester(
+            id, "requester_deleted"
+        )
+        await self._release_upstream_reservations(cancelled_as_requester)
         await self._order_repo.bulk_cancel_by_target(id, "target_deleted")
         await self._repo.delete(id)
         await self._publisher.publish_event(
             "entity_removed", {"entity_type": "warehouse", "entity_id": id}
         )
+
+    async def _release_upstream_reservations(self, cancelled_orders) -> None:
+        if not cancelled_orders:
+            return
+        for info in cancelled_orders:
+            if not getattr(info, "was_confirmed", False):
+                continue
+            if info.target_type == "factory" and self._factory_repo is not None:
+                await self._factory_repo.release_reserved(
+                    info.target_id, info.material_id, info.quantity_tons
+                )
+            elif info.target_type == "warehouse":
+                await self._repo.release_reserved(
+                    info.target_id, info.material_id, info.quantity_tons
+                )
 
     async def confirm_order(self, order_id, eta_ticks: int):
         order = await self._order_repo.get_by_id(order_id)

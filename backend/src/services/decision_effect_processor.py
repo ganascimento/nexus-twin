@@ -1,9 +1,12 @@
 from loguru import logger
 
+from src.enums import OrderStatus, TruckStatus
+
 
 class DecisionEffectProcessor:
     def __init__(
         self,
+        session,
         order_repo,
         warehouse_service,
         factory_repo,
@@ -15,6 +18,7 @@ class DecisionEffectProcessor:
         store_repo,
         route_repo,
     ):
+        self._session = session
         self._order_repo = order_repo
         self._warehouse_service = warehouse_service
         self._factory_repo = factory_repo
@@ -52,15 +56,20 @@ class DecisionEffectProcessor:
             )
             return
 
+        savepoint = await self._session.begin_nested()
         try:
             await handler(entity_id, payload, current_tick)
         except Exception:
+            await savepoint.rollback()
             logger.exception(
-                "Effect handler failed for ({}, {}) entity={}",
+                "Effect handler failed for ({}, {}) entity={} — rolling back partial effects",
                 entity_type,
                 action,
                 entity_id,
             )
+        else:
+            if savepoint.is_active:
+                await savepoint.commit()
 
     # --- Store handlers ---
 
@@ -207,6 +216,28 @@ class DecisionEffectProcessor:
     async def _handle_accept_contract(self, entity_id, payload, tick):
         truck = await self._truck_repo.get_by_id(entity_id)
         order = await self._order_repo.get_by_id(payload["order_id"])
+
+        if truck is not None and truck.status in (
+            TruckStatus.BROKEN.value,
+            TruckStatus.MAINTENANCE.value,
+        ):
+            logger.warning(
+                "Ignoring accept_contract: truck={} status={}",
+                entity_id,
+                truck.status,
+            )
+            return
+
+        if order is None or order.status in (
+            OrderStatus.DELIVERED.value,
+            OrderStatus.CANCELLED.value,
+        ):
+            logger.warning(
+                "Ignoring accept_contract: order={} status={}",
+                payload.get("order_id"),
+                getattr(order, "status", None),
+            )
+            return
 
         origin_coords = await self._get_entity_coords(
             order.target_type, order.target_id

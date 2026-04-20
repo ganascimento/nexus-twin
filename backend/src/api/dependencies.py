@@ -23,14 +23,16 @@ async def get_factory_service(db: AsyncSession = Depends(get_db)):
 
 
 async def get_warehouse_service(db: AsyncSession = Depends(get_db)):
+    from src.repositories.factory import FactoryRepository
     from src.repositories.order import OrderRepository
     from src.repositories.warehouse import WarehouseRepository
     from src.services.warehouse import WarehouseService
 
     warehouse_repo = WarehouseRepository(db)
     order_repo = OrderRepository(db)
+    factory_repo = FactoryRepository(db)
     publisher = _RedisPublisher(db)
-    return WarehouseService(warehouse_repo, order_repo, publisher)
+    return WarehouseService(warehouse_repo, order_repo, publisher, factory_repo=factory_repo)
 
 
 async def get_store_service(db: AsyncSession = Depends(get_db)):
@@ -47,7 +49,13 @@ async def get_store_service(db: AsyncSession = Depends(get_db)):
     factory_repo = FactoryRepository(db)
     order_service = OrderService(order_repo, warehouse_repo, factory_repo)
     publisher = _RedisPublisher(db)
-    return StoreService(store_repo, order_service, publisher)
+    return StoreService(
+        store_repo,
+        order_service,
+        publisher,
+        warehouse_repo=warehouse_repo,
+        factory_repo=factory_repo,
+    )
 
 
 async def get_truck_service(db: AsyncSession = Depends(get_db)):

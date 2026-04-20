@@ -45,7 +45,7 @@ class TruckDecision(AgentDecisionBase):
     action: Literal[
         "accept_contract", "refuse_contract", "choose_route",
         "request_maintenance", "alert_breakdown", "complete_delivery",
-        "reroute"
+        "reroute", "hold"
     ]
     payload: AcceptContractPayload | RefuseContractPayload | RequestMaintenancePayload | AlertBreakdownPayload | ReroutePayload | None = None
     degradation: float | None = None

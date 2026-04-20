@@ -191,9 +191,17 @@ async def test_guardrail_rejects_invalid_action(seeded_simulation_client):
     await session.rollback()
 
     result = await session.execute(
-        text("SELECT COUNT(*) FROM agent_decisions WHERE entity_id='store-001' AND action='fly_to_moon'")
+        text("SELECT COUNT(*) FROM agent_decisions WHERE entity_id='store-001'")
     )
-    assert result.scalar() == 0
+    assert result.scalar() == 0, (
+        "Guardrail must prevent ANY decision from being persisted when action is invalid"
+    )
+
+    stock_result = await session.execute(
+        text("SELECT stock FROM store_stocks WHERE store_id='store-001' AND material_id='cimento'")
+    )
+    stock = stock_result.scalar_one()
+    assert stock < 1.0, "Physics must still run despite guardrail rejection"
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +263,15 @@ async def test_tick_resilient_to_agent_errors(seeded_simulation_client):
         text("SELECT stock FROM store_stocks WHERE store_id='store-001' AND material_id='cimento'")
     )
     stock = result.scalar_one()
-    assert stock < 1.0
+    assert stock < 1.0, "Physics must still execute despite broken LLM"
+
+    decision_count = (await session.execute(
+        text("SELECT COUNT(*) FROM agent_decisions WHERE entity_id='store-001'")
+    )).scalar()
+    assert decision_count == 0, "Broken LLM must not produce any persisted decision"
+
+    status = await client.get("/simulation/status")
+    assert status.json()["current_tick"] == 1, "Tick counter must advance despite agent failure"
 
 
 # ---------------------------------------------------------------------------

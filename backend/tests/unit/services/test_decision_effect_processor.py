@@ -166,6 +166,7 @@ def processor(
     mock_store_repo,
 ):
     return DecisionEffectProcessor(
+        session=AsyncMock(),
         order_repo=mock_order_repo,
         warehouse_service=mock_warehouse_service,
         factory_repo=mock_factory_repo,

@@ -4,10 +4,12 @@ from src.services import NotFoundError
 
 
 class StoreService:
-    def __init__(self, repo, order_service, publisher):
+    def __init__(self, repo, order_service, publisher, warehouse_repo=None, factory_repo=None):
         self._repo = repo
         self._order_service = order_service
         self._publisher = publisher
+        self._warehouse_repo = warehouse_repo
+        self._factory_repo = factory_repo
 
     async def list_stores(self):
         return await self._repo.get_all()
@@ -36,10 +38,28 @@ class StoreService:
         store = await self._repo.get_by_id(id)
         if store is None:
             raise NotFoundError(f"Store '{id}' not found")
-        await self._order_service.cancel_orders_from(requester_id=id, reason="requester_deleted")
+        cancelled_as_requester = await self._order_service.cancel_orders_from(
+            requester_id=id, reason="requester_deleted"
+        )
+        await self._release_upstream_reservations(cancelled_as_requester)
         await self._order_service.cancel_orders_targeting(target_id=id, reason="target_deleted")
         await self._repo.delete(id)
         await self._publisher.publish_event("entity_removed", {"entity_type": "store", "entity_id": id})
+
+    async def _release_upstream_reservations(self, cancelled_orders) -> None:
+        if not cancelled_orders:
+            return
+        for info in cancelled_orders:
+            if not getattr(info, "was_confirmed", False):
+                continue
+            if info.target_type == "warehouse" and self._warehouse_repo is not None:
+                await self._warehouse_repo.release_reserved(
+                    info.target_id, info.material_id, info.quantity_tons
+                )
+            elif info.target_type == "factory" and self._factory_repo is not None:
+                await self._factory_repo.release_reserved(
+                    info.target_id, info.material_id, info.quantity_tons
+                )
 
     async def adjust_stock(self, id: str, material_id: str, delta: float) -> None:
         stock_entry = await self._repo.get_stock(id, material_id)

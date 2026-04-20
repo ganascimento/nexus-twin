@@ -36,6 +36,7 @@ class FactoryService:
         factory = await self._repo.get_by_id(id)
         if factory is None:
             raise NotFoundError(f"Factory '{id}' not found")
+        await self._order_repo.bulk_cancel_by_requester(id, "requester_deleted")
         await self._order_repo.bulk_cancel_by_target(id, "target_deleted")
         await self._repo.delete(id)
         await self._publisher.publish_event(

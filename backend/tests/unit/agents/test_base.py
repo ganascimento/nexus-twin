@@ -434,7 +434,7 @@ async def test_master_agent_dispatch_creates_task_per_trigger():
         make_trigger("warehouse-001", "warehouse"),
     ]
 
-    mock_agent = AsyncMock()
+    mock_agent = MagicMock()
     mock_agent_factory = MagicMock(return_value=mock_agent)
 
     semaphore = asyncio.Semaphore(4)

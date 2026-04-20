@@ -152,6 +152,12 @@ async def test_confirmed_order_not_lost(seeded_simulation_client, mock_valhalla)
         material_id="cimento",
         quantity_tons=30.0,
     )
+    await session.execute(
+        text(
+            "UPDATE warehouse_stocks SET stock_reserved=30.0 "
+            "WHERE warehouse_id='warehouse-002' AND material_id='cimento'"
+        )
+    )
     await session.commit()
 
     hold_llm = make_llm_responses(
@@ -160,8 +166,18 @@ async def test_confirmed_order_not_lost(seeded_simulation_client, mock_valhalla)
             for _ in range(30)
         ]
     )
+    total_ticks = 5
     with patch("src.agents.base.ChatOpenAI", return_value=hold_llm):
-        await advance_ticks_with_settle(client, 5)
+        for _ in range(total_ticks):
+            await advance_ticks_with_settle(client, 1)
+            await session.rollback()
+            reserved = (await session.execute(
+                text(
+                    "SELECT stock_reserved FROM warehouse_stocks "
+                    "WHERE warehouse_id='warehouse-002' AND material_id='cimento'"
+                )
+            )).scalar_one()
+            assert float(reserved) == 30.0
 
     await session.rollback()
     status = await _get_order_status(session, order_id)

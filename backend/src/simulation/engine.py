@@ -165,55 +165,93 @@ class SimulationEngine:
 
                 if new_eta == 0:
                     cargo = truck.cargo
-                    if cargo is not None:
-                        if isinstance(cargo, dict):
-                            material_id = cargo.get("material_id")
-                            quantity_tons = cargo.get("quantity_tons", 0.0)
-                        else:
-                            material_id = getattr(cargo, "material_id", None)
-                            quantity_tons = getattr(cargo, "quantity_tons", 0.0)
-                        if material_id and quantity_tons > 0:
+                    if isinstance(cargo, dict):
+                        material_id = cargo.get("material_id")
+                        quantity_tons = cargo.get("quantity_tons", 0.0)
+                    elif cargo is not None:
+                        material_id = getattr(cargo, "material_id", None)
+                        quantity_tons = getattr(cargo, "quantity_tons", 0.0)
+                    else:
+                        material_id = None
+                        quantity_tons = 0.0
+
+                    destination_exists = await self._destination_exists(
+                        route.dest_type, route.dest_id,
+                        store_repo, warehouse_repo, factory_repo,
+                    )
+                    origin_exists = await self._origin_exists(
+                        route.origin_type, route.origin_id,
+                        warehouse_repo, factory_repo,
+                    )
+
+                    if not destination_exists:
+                        logger.warning(
+                            "Truck {} arrived at deleted {} '{}'; interrupting route and discarding cargo",
+                            truck.id, route.dest_type, route.dest_id,
+                        )
+                        if origin_exists and material_id and quantity_tons > 0:
                             if route.origin_type == "warehouse":
-                                await warehouse_repo.consume_reserved(
+                                await warehouse_repo.release_reserved(
                                     route.origin_id, material_id, quantity_tons
                                 )
                             elif route.origin_type == "factory":
-                                await factory_repo.consume_reserved(
+                                await factory_repo.release_reserved(
                                     route.origin_id, material_id, quantity_tons
                                 )
+                        if route.order_id is not None:
+                            await order_repo.update_status(route.order_id, "cancelled")
+                        await truck_repo.set_cargo(truck.id, None)
+                        await truck_repo.update_status(truck.id, "idle")
+                        await truck_repo.set_active_route(truck.id, None)
+                        await route_repo.update_status(route.id, "interrupted")
+                        continue
 
-                            if route.dest_type == "warehouse":
-                                await warehouse_repo.update_stock(
-                                    route.dest_id, material_id, quantity_tons
-                                )
-                            elif route.dest_type == "store":
-                                await store_repo.update_stock(
-                                    route.dest_id, material_id, quantity_tons
-                                )
-                            else:
-                                logger.warning(
-                                    "Truck {} arrived at unsupported dest_type '{}', skipping stock transfer",
-                                    truck.id, route.dest_type,
-                                )
+                    if not origin_exists:
+                        logger.warning(
+                            "Truck {} completing route from deleted {} '{}'; skipping consume_reserved",
+                            truck.id, route.origin_type, route.origin_id,
+                        )
+                        if route.order_id is not None:
+                            await order_repo.update_status(route.order_id, "cancelled")
+                        await truck_repo.set_cargo(truck.id, None)
+                        await truck_repo.update_status(truck.id, "idle")
+                        await truck_repo.set_active_route(truck.id, None)
+                        await route_repo.update_status(route.id, "interrupted")
+                        continue
+
+                    if material_id and quantity_tons > 0:
+                        if route.origin_type == "warehouse":
+                            await warehouse_repo.consume_reserved(
+                                route.origin_id, material_id, quantity_tons
+                            )
+                        elif route.origin_type == "factory":
+                            await factory_repo.consume_reserved(
+                                route.origin_id, material_id, quantity_tons
+                            )
+
+                        if route.dest_type == "warehouse":
+                            await warehouse_repo.update_stock(
+                                route.dest_id, material_id, quantity_tons
+                            )
+                        elif route.dest_type == "store":
+                            await store_repo.update_stock(
+                                route.dest_id, material_id, quantity_tons
+                            )
+                        else:
+                            logger.warning(
+                                "Truck {} arrived at unsupported dest_type '{}', skipping stock transfer",
+                                truck.id, route.dest_type,
+                            )
 
                     if route.order_id is not None:
                         await order_repo.update_status(route.order_id, "delivered")
 
                     if route.dest_type in ("warehouse", "store"):
-                        delivery_payload = {}
-                        if cargo is not None:
-                            if isinstance(cargo, dict):
-                                delivery_payload = {
-                                    "material_id": cargo.get("material_id"),
-                                    "quantity_tons": cargo.get("quantity_tons"),
-                                    "from_truck_id": truck.id,
-                                }
-                            else:
-                                delivery_payload = {
-                                    "material_id": getattr(cargo, "material_id", None),
-                                    "quantity_tons": getattr(cargo, "quantity_tons", None),
-                                    "from_truck_id": truck.id,
-                                }
+                        delivery_payload = {
+                            "material_id": material_id,
+                            "quantity_tons": quantity_tons,
+                            "from_truck_id": truck.id,
+                        } if cargo is not None else {}
                         await event_repo.create({
                             "event_type": "resupply_delivered",
                             "entity_type": route.dest_type,
@@ -313,6 +351,31 @@ class SimulationEngine:
             await order_repo.increment_all_age_ticks()
 
             await session.commit()
+
+    async def _destination_exists(
+        self, dest_type: str, dest_id: str,
+        store_repo: StoreRepository,
+        warehouse_repo: WarehouseRepository,
+        factory_repo: FactoryRepository,
+    ) -> bool:
+        if dest_type == "store":
+            return await store_repo.get_by_id(dest_id) is not None
+        if dest_type == "warehouse":
+            return await warehouse_repo.get_by_id(dest_id) is not None
+        if dest_type == "factory":
+            return await factory_repo.get_by_id(dest_id) is not None
+        return True
+
+    async def _origin_exists(
+        self, origin_type: str, origin_id: str,
+        warehouse_repo: WarehouseRepository,
+        factory_repo: FactoryRepository,
+    ) -> bool:
+        if origin_type == "warehouse":
+            return await warehouse_repo.get_by_id(origin_id) is not None
+        if origin_type == "factory":
+            return await factory_repo.get_by_id(origin_id) is not None
+        return True
 
     def _interpolate_position(
         self, path: list, timestamps: list, current_tick: int

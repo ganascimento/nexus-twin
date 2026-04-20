@@ -17,7 +17,7 @@ from src.services.simulation import SimulationService
 from src.simulation.engine import SimulationEngine
 
 
-AGENT_SETTLE_TIME = 2.0
+AGENT_SETTLE_TIME = 0.5
 
 VALHALLA_MOCK_ROUTE = {
     "path": [[-46.6, -23.5], [-46.7, -23.4], [-46.8, -23.3], [-46.9, -23.2], [-47.0, -23.1]],
@@ -108,7 +108,7 @@ def make_combined_routing_llm(by_entity=None, by_agent=None):
     )
 
 
-async def advance_ticks_with_settle(client, n: int, settle_time: float = AGENT_SETTLE_TIME, inter: float = 0.3):
+async def advance_ticks_with_settle(client, n: int, settle_time: float = AGENT_SETTLE_TIME, inter: float = 0.1):
     for _ in range(n):
         await client.post("/simulation/tick")
         await asyncio.sleep(inter)
@@ -285,3 +285,12 @@ def mock_valhalla():
     ) as mock:
         mock.return_value = VALHALLA_MOCK_ROUTE
         yield mock
+
+
+@pytest.fixture(autouse=True)
+def no_random_breakdown(request):
+    if "allow_random_breakdown" in request.keywords:
+        yield
+        return
+    with patch("src.simulation.engine.roll_breakdown", return_value=False):
+        yield

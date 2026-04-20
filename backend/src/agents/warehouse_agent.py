@@ -55,6 +55,7 @@ class WarehouseAgent:
         route_repo = RouteRepository(self._db_session)
         store_repo = StoreRepository(self._db_session)
         return DecisionEffectProcessor(
+            session=self._db_session,
             order_repo=order_repo,
             warehouse_service=WarehouseService(
                 warehouse_repo, order_repo, self._publisher

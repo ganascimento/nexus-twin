@@ -9,6 +9,7 @@ from src.services.decision_effect_processor import DecisionEffectProcessor
 @pytest.fixture
 def processor():
     return DecisionEffectProcessor(
+        session=AsyncMock(),
         order_repo=AsyncMock(),
         warehouse_service=AsyncMock(),
         factory_repo=AsyncMock(),

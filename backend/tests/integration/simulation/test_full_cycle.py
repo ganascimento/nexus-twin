@@ -15,6 +15,11 @@ from tests.integration.simulation.conftest import (
 pytestmark = pytest.mark.asyncio
 
 
+STORE_001_CIMENTO_DEMAND_RATE = 7.5
+WAREHOUSE_002_CIMENTO_INITIAL_STOCK = 150.0
+DELIVERY_QUANTITY_TONS = 30.0
+
+
 STORE_ORDER = {
     "action": "order_replenishment",
     "payload": {
@@ -106,7 +111,7 @@ async def test_warehouse_reserves_stock_on_confirm(seeded_simulation_client, moc
 
     await session.rollback()
     reserved = await get_stock_reserved(session, "warehouse-002", "cimento")
-    assert reserved is not None and float(reserved) >= 30.0
+    assert reserved is not None and float(reserved) == DELIVERY_QUANTITY_TONS
     status = await get_order_status(session, order_id)
     assert status == "confirmed"
 
@@ -197,8 +202,9 @@ async def test_stock_transferred_to_store_on_arrival(seeded_simulation_client, m
     assert final_stock is not None
     ticks_before_delivery = 6
     ticks_after_delivery = 3
-    demand_consumed = min(float(initial_store_stock), 7.5 * ticks_before_delivery) + 7.5 * ticks_after_delivery
-    assert abs((float(final_stock) - float(initial_store_stock)) - (30.0 - demand_consumed)) < 1.0
+    demand_consumed = min(float(initial_store_stock), STORE_001_CIMENTO_DEMAND_RATE * ticks_before_delivery) + STORE_001_CIMENTO_DEMAND_RATE * ticks_after_delivery
+    expected_final = float(initial_store_stock) + DELIVERY_QUANTITY_TONS - demand_consumed
+    assert float(final_stock) == pytest.approx(expected_final, abs=0.001)
 
 
 async def test_order_marked_delivered_on_arrival(seeded_simulation_client, mock_valhalla):
@@ -283,10 +289,14 @@ async def test_full_cycle_store_to_delivery(seeded_simulation_client, mock_valha
     assert await get_order_status(session, order_id) == "delivered"
 
     final_store = await get_stock(session, "store_stocks", "store_id", "store-001", "cimento")
-    assert float(final_store) > float(initial_store)
+    ticks_before_delivery = 6
+    ticks_after_delivery = 3
+    demand_consumed = min(float(initial_store), STORE_001_CIMENTO_DEMAND_RATE * ticks_before_delivery) + STORE_001_CIMENTO_DEMAND_RATE * ticks_after_delivery
+    expected_final_store = float(initial_store) + DELIVERY_QUANTITY_TONS - demand_consumed
+    assert float(final_store) == pytest.approx(expected_final_store, abs=0.001)
 
     final_warehouse = await get_stock(session, "warehouse_stocks", "warehouse_id", "warehouse-002", "cimento")
-    assert float(final_warehouse) == float(initial_warehouse) - 30.0
+    assert float(final_warehouse) == float(initial_warehouse) - DELIVERY_QUANTITY_TONS
 
     reserved = await get_stock_reserved(session, "warehouse-002", "cimento")
     assert float(reserved) == 0.0

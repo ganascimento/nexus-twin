@@ -88,7 +88,8 @@ async def test_update_warehouse_raises_not_found_when_warehouse_missing(service,
 
 @pytest.mark.asyncio
 async def test_delete_warehouse_cancels_orders_without_active_route(service, repo, order_repo):
-    order_repo.bulk_cancel_by_target.return_value = ["store-001"]
+    order_repo.bulk_cancel_by_target.return_value = []
+    order_repo.bulk_cancel_by_requester.return_value = []
     await service.delete_warehouse("wh-001")
     order_repo.bulk_cancel_by_target.assert_called_once_with("wh-001", "target_deleted")
     repo.delete.assert_called_once_with("wh-001")
@@ -97,6 +98,7 @@ async def test_delete_warehouse_cancels_orders_without_active_route(service, rep
 @pytest.mark.asyncio
 async def test_delete_warehouse_preserves_orders_with_active_truck_route(service, repo, order_repo):
     order_repo.bulk_cancel_by_target.return_value = []
+    order_repo.bulk_cancel_by_requester.return_value = []
     await service.delete_warehouse("wh-001")
     order_repo.bulk_cancel_by_target.assert_called_once_with("wh-001", "target_deleted")
     repo.delete.assert_called_once_with("wh-001")
@@ -105,6 +107,7 @@ async def test_delete_warehouse_preserves_orders_with_active_truck_route(service
 @pytest.mark.asyncio
 async def test_delete_warehouse_publishes_entity_removed_event(service, repo, order_repo, publisher):
     order_repo.bulk_cancel_by_target.return_value = []
+    order_repo.bulk_cancel_by_requester.return_value = []
     await service.delete_warehouse("wh-001")
     publisher.publish_event.assert_called_once_with(
         "entity_removed", {"entity_type": "warehouse", "entity_id": "wh-001"}

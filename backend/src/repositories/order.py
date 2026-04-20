@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -7,6 +8,18 @@ from src.database.models import PendingOrder
 from src.database.models.route import Route
 
 ACTIVE_STATUSES = ("pending", "confirmed")
+
+
+@dataclass(frozen=True)
+class CancelledOrderInfo:
+    order_id: UUID
+    requester_type: str
+    requester_id: str
+    target_type: str
+    target_id: str
+    material_id: str
+    quantity_tons: float
+    was_confirmed: bool
 
 
 class OrderRepository:
@@ -127,7 +140,7 @@ class OrderRepository:
 
     async def bulk_cancel_by_target(
         self, target_id: str, reason: str, skip_active_routes: bool = True
-    ) -> list[str]:
+    ) -> list[CancelledOrderInfo]:
         result = await self._session.execute(
             select(PendingOrder).where(
                 PendingOrder.target_id == target_id,
@@ -136,18 +149,34 @@ class OrderRepository:
         )
         orders = result.scalars().all()
 
-        if skip_active_routes:
-            orders = [o for o in orders if o.active_route_id is None]
+        if skip_active_routes and orders:
+            active_route_order_ids = (
+                await self._session.execute(
+                    select(Route.order_id).where(
+                        Route.order_id.in_([o.id for o in orders]),
+                        Route.status == "active",
+                    )
+                )
+            ).scalars().all()
+            active_set = set(active_route_order_ids)
+            orders = [o for o in orders if o.id not in active_set]
 
         if not orders:
             return []
 
         ids = [o.id for o in orders]
-        seen = set()
-        requester_ids = [
-            o.requester_id
+        cancelled = [
+            CancelledOrderInfo(
+                order_id=o.id,
+                requester_type=o.requester_type,
+                requester_id=o.requester_id,
+                target_type=o.target_type,
+                target_id=o.target_id,
+                material_id=o.material_id,
+                quantity_tons=o.quantity_tons,
+                was_confirmed=(o.status == "confirmed"),
+            )
             for o in orders
-            if not (o.requester_id in seen or seen.add(o.requester_id))
         ]
 
         await self._session.execute(
@@ -155,17 +184,43 @@ class OrderRepository:
             .where(PendingOrder.id.in_(ids))
             .values(status="cancelled", cancellation_reason=reason)
         )
-        return requester_ids
+        return cancelled
 
-    async def bulk_cancel_by_requester(self, requester_id: str, reason: str) -> None:
-        await self._session.execute(
-            update(PendingOrder)
-            .where(
+    async def bulk_cancel_by_requester(
+        self, requester_id: str, reason: str
+    ) -> list[CancelledOrderInfo]:
+        result = await self._session.execute(
+            select(PendingOrder).where(
                 PendingOrder.requester_id == requester_id,
                 PendingOrder.status.in_(ACTIVE_STATUSES),
             )
+        )
+        orders = result.scalars().all()
+
+        if not orders:
+            return []
+
+        ids = [o.id for o in orders]
+        cancelled = [
+            CancelledOrderInfo(
+                order_id=o.id,
+                requester_type=o.requester_type,
+                requester_id=o.requester_id,
+                target_type=o.target_type,
+                target_id=o.target_id,
+                material_id=o.material_id,
+                quantity_tons=o.quantity_tons,
+                was_confirmed=(o.status == "confirmed"),
+            )
+            for o in orders
+        ]
+
+        await self._session.execute(
+            update(PendingOrder)
+            .where(PendingOrder.id.in_(ids))
             .values(status="cancelled", cancellation_reason=reason)
         )
+        return cancelled
 
     async def get_retry_eligible(self, requester_id: str) -> list[PendingOrder]:
         result = await self._session.execute(

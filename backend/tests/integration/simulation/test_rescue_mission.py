@@ -15,6 +15,10 @@ from tests.integration.simulation.conftest import (
 pytestmark = pytest.mark.asyncio
 
 
+STORE_001_CIMENTO_DEMAND_RATE = 7.5
+RESCUE_CARGO_QUANTITY_TONS = 50.0
+
+
 _BROKEN_CARGO = {
     "material_id": "cimento",
     "quantity_tons": 50.0,
@@ -152,7 +156,14 @@ async def test_rescue_truck_accepts_and_delivers(seeded_simulation_client, mock_
     final_store_stock = await get_stock(
         session, "store_stocks", "store_id", "store-001", "cimento"
     )
-    assert float(final_store_stock) > float(initial_store_stock)
+    ticks_before_delivery = 5
+    ticks_from_delivery_to_end = 3
+    demand_consumed = (
+        min(float(initial_store_stock), STORE_001_CIMENTO_DEMAND_RATE * ticks_before_delivery)
+        + STORE_001_CIMENTO_DEMAND_RATE * ticks_from_delivery_to_end
+    )
+    expected_final = float(initial_store_stock) + RESCUE_CARGO_QUANTITY_TONS - demand_consumed
+    assert float(final_store_stock) == pytest.approx(expected_final, abs=0.001)
 
 
 async def test_rescue_preserves_destination(seeded_simulation_client, mock_valhalla):

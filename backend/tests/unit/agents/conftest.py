@@ -10,7 +10,20 @@ from pydantic import BaseModel
 
 @pytest.fixture
 def mock_db_session():
-    return AsyncMock()
+    session = MagicMock()
+    session.execute = AsyncMock(return_value=MagicMock())
+    session.flush = AsyncMock()
+    session.refresh = AsyncMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    savepoint = MagicMock()
+    savepoint.rollback = AsyncMock()
+    savepoint.commit = AsyncMock()
+    savepoint.is_active = True
+    session.begin_nested = AsyncMock(return_value=savepoint)
+    session.close = AsyncMock()
+    session.get = AsyncMock()
+    return session
 
 
 @pytest.fixture

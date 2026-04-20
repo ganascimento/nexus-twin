@@ -53,35 +53,44 @@ async def test_increment_all_age_ticks_bulk_update():
 
 @pytest.mark.asyncio
 async def test_bulk_cancel_by_target_skips_active_routes():
-    order_without_route = _make_order(requester_id="s1", active_route_id=None)
-    order_with_route = _make_order(requester_id="s2", active_route_id=uuid.uuid4())
+    order_without_route = _make_order(requester_id="s1")
+    order_with_route = _make_order(requester_id="s2")
 
-    select_result = MagicMock()
-    select_result.scalars.return_value.all.return_value = [
+    select_orders_result = MagicMock()
+    select_orders_result.scalars.return_value.all.return_value = [
         order_without_route,
         order_with_route,
+    ]
+
+    select_active_routes_result = MagicMock()
+    select_active_routes_result.scalars.return_value.all.return_value = [
+        order_with_route.id,
     ]
 
     update_result = MagicMock()
 
     session = AsyncMock()
-    session.execute.side_effect = [select_result, update_result]
+    session.execute.side_effect = [
+        select_orders_result,
+        select_active_routes_result,
+        update_result,
+    ]
 
     repo = OrderRepository(session)
-    cancelled_requester_ids = await repo.bulk_cancel_by_target(
+    cancelled = await repo.bulk_cancel_by_target(
         target_id="w1",
         reason="warehouse_removed",
         skip_active_routes=True,
     )
 
-    assert len(cancelled_requester_ids) == 1
-    assert cancelled_requester_ids[0] == "s1"
+    assert len(cancelled) == 1
+    assert cancelled[0].requester_id == "s1"
 
 
 @pytest.mark.asyncio
 async def test_bulk_cancel_by_target_without_skip():
-    order_a = _make_order(requester_id="s1", active_route_id=None)
-    order_b = _make_order(requester_id="s2", active_route_id=uuid.uuid4())
+    order_a = _make_order(requester_id="s1")
+    order_b = _make_order(requester_id="s2")
 
     select_result = MagicMock()
     select_result.scalars.return_value.all.return_value = [order_a, order_b]
@@ -92,28 +101,34 @@ async def test_bulk_cancel_by_target_without_skip():
     session.execute.side_effect = [select_result, update_result]
 
     repo = OrderRepository(session)
-    cancelled_requester_ids = await repo.bulk_cancel_by_target(
+    cancelled = await repo.bulk_cancel_by_target(
         target_id="w1",
         reason="warehouse_removed",
         skip_active_routes=False,
     )
 
-    assert len(cancelled_requester_ids) == 2
+    assert len(cancelled) == 2
 
 
 @pytest.mark.asyncio
 async def test_bulk_cancel_by_requester_cancels_all_from_requester():
+    order_a = _make_order(requester_id="s1")
+    select_result = MagicMock()
+    select_result.scalars.return_value.all.return_value = [order_a]
+    update_result = MagicMock()
+
     session = AsyncMock()
-    result = MagicMock()
-    session.execute.return_value = result
+    session.execute.side_effect = [select_result, update_result]
 
     repo = OrderRepository(session)
-    await repo.bulk_cancel_by_requester(
+    cancelled = await repo.bulk_cancel_by_requester(
         requester_id="s1",
         reason="store_removed",
     )
 
-    session.execute.assert_called_once()
+    assert len(cancelled) == 1
+    assert cancelled[0].requester_id == "s1"
+    assert session.execute.call_count == 2
 
 
 # ---------------------------------------------------------------------------
