@@ -13,6 +13,15 @@ interface TripDatum {
   degradation: number;
 }
 
+interface AnimatedTruckDatum {
+  id: string;
+  entityType: "truck";
+  position: [number, number];
+  truckType: string;
+  degradation: number;
+  status: string;
+}
+
 interface StaticTruckDatum {
   id: string;
   entityType: "truck";
@@ -20,6 +29,30 @@ interface StaticTruckDatum {
   truckType: string;
   degradation: number;
   status: string;
+}
+
+function interpolatePosition(
+  path: [number, number][],
+  timestamps: number[],
+  currentTime: number,
+): [number, number] {
+  if (path.length === 0) return [0, 0];
+  if (path.length === 1 || timestamps.length < 2) return path[0];
+  if (currentTime <= timestamps[0]) return path[0];
+  if (currentTime >= timestamps[timestamps.length - 1]) {
+    return path[path.length - 1];
+  }
+  for (let i = 0; i < timestamps.length - 1; i++) {
+    const t0 = timestamps[i];
+    const t1 = timestamps[i + 1];
+    if (t0 <= currentTime && currentTime < t1) {
+      const progress = (currentTime - t0) / (t1 - t0);
+      const [lng0, lat0] = path[i];
+      const [lng1, lat1] = path[i + 1];
+      return [lng0 + progress * (lng1 - lng0), lat0 + progress * (lat1 - lat0)];
+    }
+  }
+  return path[path.length - 1];
 }
 
 function getDegradationColor(degradation: number): [number, number, number] {
@@ -37,12 +70,13 @@ export function createTrucksLayers(
   const routeMap = new Map(routes.map((r) => [r.id, r]));
 
   const tripsData: TripDatum[] = [];
+  const animatedData: AnimatedTruckDatum[] = [];
   const staticData: StaticTruckDatum[] = [];
 
   for (const truck of trucks) {
     if (truck.active_route_id) {
       const route = routeMap.get(truck.active_route_id);
-      if (route && route.path.length > 0) {
+      if (route && route.path.length > 0 && route.timestamps.length > 0) {
         tripsData.push({
           id: truck.id,
           entityType: "truck",
@@ -50,6 +84,18 @@ export function createTrucksLayers(
           timestamps: route.timestamps,
           truckType: truck.truck_type,
           degradation: truck.degradation,
+        });
+        animatedData.push({
+          id: truck.id,
+          entityType: "truck",
+          position: interpolatePosition(
+            route.path,
+            route.timestamps,
+            currentTime,
+          ),
+          truckType: truck.truck_type,
+          degradation: truck.degradation,
+          status: truck.status,
         });
         continue;
       }
@@ -76,11 +122,33 @@ export function createTrucksLayers(
         getTimestamps: (d) => d.timestamps,
         getColor: (d) => getDegradationColor(d.degradation),
         currentTime,
-        trailLength: 600000,
-        widthMinPixels: 4,
-        pickable: true,
+        trailLength: 60000,
+        widthMinPixels: 3,
         jointRounded: true,
         capRounded: true,
+      }),
+    );
+  }
+
+  if (animatedData.length > 0) {
+    layers.push(
+      new ScatterplotLayer<AnimatedTruckDatum>({
+        id: "trucks-animated-layer",
+        data: animatedData,
+        getPosition: (d) => d.position,
+        getRadius: 10,
+        getFillColor: (d) =>
+          d.truckType === "proprietario"
+            ? TRUCK_PROPRIETARIO_COLOR
+            : TRUCK_TERCEIRO_COLOR,
+        getLineColor: [255, 255, 255],
+        lineWidthMinPixels: 2,
+        stroked: true,
+        radiusUnits: "pixels",
+        pickable: true,
+        updateTriggers: {
+          getPosition: [currentTime],
+        },
       }),
     );
   }

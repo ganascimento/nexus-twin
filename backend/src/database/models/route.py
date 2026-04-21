@@ -18,5 +18,6 @@ class Route(Base):
     eta_ticks = Column(Integer, nullable=False)
     status = Column(String(20), nullable=False)
     order_id = Column(UUID(as_uuid=True), ForeignKey("pending_orders.id"), nullable=True)
+    leg = Column(String(20), nullable=True)
     started_at = Column(TIMESTAMP(timezone=True), nullable=False)
     completed_at = Column(TIMESTAMP(timezone=True), nullable=True)

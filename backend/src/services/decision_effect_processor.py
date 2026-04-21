@@ -248,29 +248,27 @@ class DecisionEffectProcessor:
                 )
                 return
 
-        origin_coords = await self._get_entity_coords(
+        pickup_coords = await self._get_entity_coords(
             order.target_type, order.target_id
         )
-        dest_coords = await self._get_entity_coords(
-            order.requester_type, order.requester_id
-        )
 
-        route_data = await self._route_service.compute_route(
-            origin_coords[0],
-            origin_coords[1],
-            dest_coords[0],
-            dest_coords[1],
+        pickup_data = await self._route_service.compute_route(
+            truck.current_lat,
+            truck.current_lng,
+            pickup_coords[0],
+            pickup_coords[1],
             tick,
         )
-        route_data["order_id"] = str(order.id)
+        pickup_data["order_id"] = str(order.id)
+        pickup_data["leg"] = "pickup"
 
-        route = await self._route_service.create_route(
+        pickup_route = await self._route_service.create_route(
+            entity_id,
+            "truck",
             entity_id,
             order.target_type,
             order.target_id,
-            order.requester_type,
-            order.requester_id,
-            route_data,
+            pickup_data,
         )
 
         cargo = {
@@ -282,7 +280,7 @@ class DecisionEffectProcessor:
             "destination_type": order.requester_type,
             "destination_id": order.requester_id,
         }
-        await self._truck_service.assign_route(entity_id, str(route.id), cargo)
+        await self._truck_service.assign_route(entity_id, str(pickup_route.id), cargo)
 
     async def _handle_refuse_contract(self, entity_id, payload, tick):
         order = await self._order_repo.get_by_id(payload["order_id"])
@@ -362,6 +360,11 @@ class DecisionEffectProcessor:
             "status": "active",
             "tick_start": tick,
         })
+
+        if route is not None and route.status == "active":
+            await self._route_repo.update_status(route.id, "interrupted")
+        await self._truck_repo.set_cargo(entity_id, None)
+        await self._truck_repo.set_active_route(entity_id, None)
 
     async def _handle_reroute(self, entity_id, payload, tick):
         truck = await self._truck_repo.get_by_id(entity_id)

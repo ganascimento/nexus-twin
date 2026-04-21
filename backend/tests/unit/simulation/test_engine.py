@@ -803,3 +803,155 @@ async def test_dispatch_dedup_allows_different_entities_concurrently():
 
     gate.set()
     await engine.drain_pending_agents()
+
+
+# ---------------------------------------------------------------------------
+# _build_active_routes_payload — converts tick timestamps to wall-clock ms
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_build_active_routes_payload_converts_timestamps_to_ms():
+    from datetime import datetime, timezone
+
+    started_at = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    started_ms = int(started_at.timestamp() * 1000)
+
+    fake_route = MagicMock()
+    fake_route.id = "route-xyz"
+    fake_route.truck_id = "truck-001"
+    fake_route.origin_type = "factory"
+    fake_route.origin_id = "factory-003"
+    fake_route.dest_type = "warehouse"
+    fake_route.dest_id = "warehouse-002"
+    fake_route.path = [[-46.6, -23.5], [-46.7, -23.4], [-46.8, -23.3]]
+    fake_route.timestamps = [5, 6, 7]
+    fake_route.eta_ticks = 2
+    fake_route.status = "active"
+    fake_route.started_at = started_at
+
+    engine = make_engine()
+    engine._tick_interval = 10.0  # 10s per tick
+
+    with patch("src.simulation.engine.RouteRepository") as MockRouteRepo:
+        mock_repo = AsyncMock()
+        mock_repo.get_all_active.return_value = [fake_route]
+        MockRouteRepo.return_value = mock_repo
+
+        payload = await engine._build_active_routes_payload()
+
+    assert len(payload) == 1
+    entry = payload[0]
+    assert entry["id"] == "route-xyz"
+    assert entry["truck_id"] == "truck-001"
+    assert entry["path"] == [[-46.6, -23.5], [-46.7, -23.4], [-46.8, -23.3]]
+    # First timestamp equals started_at in ms; subsequent ones add tick_interval_ms
+    assert entry["timestamps"] == [started_ms, started_ms + 10000, started_ms + 20000]
+
+
+@pytest.mark.asyncio
+async def test_build_active_routes_payload_skips_malformed_routes():
+    bad_route = MagicMock()
+    bad_route.path = "podfk@..."  # string polyline (not a list)
+    bad_route.timestamps = [1]
+    bad_route.started_at = None
+
+    engine = make_engine()
+    with patch("src.simulation.engine.RouteRepository") as MockRouteRepo:
+        mock_repo = AsyncMock()
+        mock_repo.get_all_active.return_value = [bad_route]
+        MockRouteRepo.return_value = mock_repo
+
+        payload = await engine._build_active_routes_payload()
+
+    assert payload == []
+
+
+# ---------------------------------------------------------------------------
+# Pickup arrival — completes pickup leg and dispatches delivery leg
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_pickup_arrival_creates_delivery_leg():
+    truck = make_truck(
+        id="truck-005",
+        status=TruckStatus.IN_TRANSIT,
+        current_lat=-23.5,
+        current_lng=-46.6,
+        cargo=TruckCargo(
+            material_id="cimento",
+            quantity_tons=10.0,
+            origin_type=RouteNodeType.WAREHOUSE,
+            origin_id="wh-001",
+            destination_type=RouteNodeType.STORE,
+            destination_id="store-001",
+        ),
+    )
+    warehouse = make_warehouse(id="wh-001", lat=-23.2, lng=-46.2)
+    store = make_store(id="store-001", lat=-23.6, lng=-46.7)
+    world_state = make_world_state(trucks=[truck], warehouses=[warehouse], stores=[store])
+
+    pickup_route = MagicMock()
+    pickup_route.id = "pickup-route-id"
+    pickup_route.leg = "pickup"
+    pickup_route.origin_type = "truck"
+    pickup_route.origin_id = "truck-005"
+    pickup_route.dest_type = "warehouse"
+    pickup_route.dest_id = "wh-001"
+    pickup_route.order_id = "order-xyz"
+    pickup_route.eta_ticks = 1
+    pickup_route.path = [[-46.6, -23.5], [-46.2, -23.2]]
+    pickup_route.timestamps = [0, 2]
+
+    delivery_route_mock = MagicMock()
+    delivery_route_mock.id = "delivery-route-id"
+
+    with patch("src.simulation.engine.TruckRepository") as MockTruckRepo, \
+         patch("src.simulation.engine.RouteRepository") as MockRouteRepo, \
+         patch("src.services.route.RouteService.compute_route", new_callable=AsyncMock) as mock_compute, \
+         patch("src.services.route.RouteService.create_route", new_callable=AsyncMock) as mock_create:
+        mock_truck_repo = AsyncMock()
+        MockTruckRepo.return_value = mock_truck_repo
+        mock_route_repo = AsyncMock()
+        mock_route_repo.get_active_by_truck.return_value = pickup_route
+        MockRouteRepo.return_value = mock_route_repo
+
+        mock_compute.return_value = {
+            "path": [[-46.2, -23.2], [-46.7, -23.6]],
+            "timestamps": [2, 4],
+            "distance_km": 50.0,
+            "eta_ticks": 2,
+        }
+        mock_create.return_value = delivery_route_mock
+
+        engine = make_engine()
+        engine._tick = 2
+        await engine._apply_physics(world_state)
+
+    # pickup route marked completed
+    mock_route_repo.update_status.assert_any_call("pickup-route-id", "completed")
+    # delivery route computed from warehouse (pickup dest) to store (final destination)
+    mock_compute.assert_called_once()
+    compute_args = mock_compute.call_args.args
+    assert compute_args[0] == -23.2 and compute_args[1] == -46.2, (
+        "delivery leg must start at pickup final position (warehouse)"
+    )
+    assert compute_args[2] == -23.6 and compute_args[3] == -46.7, (
+        "delivery leg must end at cargo.destination (store)"
+    )
+    # delivery route created with origin=pickup.dest (warehouse), leg=delivery
+    mock_create.assert_called_once()
+    create_args = mock_create.call_args.args
+    assert create_args[0] == "truck-005"
+    assert create_args[1] == "warehouse" and create_args[2] == "wh-001"
+    assert create_args[3] == "store" and create_args[4] == "store-001"
+    route_data = create_args[5]
+    assert route_data["leg"] == "delivery"
+
+    # truck kept cargo, assigned to delivery route; position updated to pickup end
+    mock_truck_repo.update_position.assert_any_call("truck-005", -23.2, -46.2)
+    mock_truck_repo.set_active_route.assert_any_call("truck-005", "delivery-route-id")
+    # cargo must NOT be cleared during pickup arrival
+    for call in mock_truck_repo.set_cargo.call_args_list:
+        assert call.args[1] is not None, "cargo must not be cleared on pickup arrival"

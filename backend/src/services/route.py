@@ -105,6 +105,8 @@ class RouteService:
         }
         if "order_id" in route_data:
             create_data["order_id"] = route_data["order_id"]
+        if "leg" in route_data:
+            create_data["leg"] = route_data["leg"]
         return await self._repo.create(create_data)
 
     async def _call_valhalla(

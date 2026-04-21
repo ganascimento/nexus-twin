@@ -573,3 +573,67 @@ async def test_effect_failure_does_not_raise(processor, mock_warehouse_service):
     await processor.process(
         "warehouse", "wh_01", "confirm_order", payload, current_tick=5
     )
+
+
+# --- Tests: accept_contract creates pickup leg from truck position ---
+
+
+@pytest.mark.asyncio
+async def test_accept_contract_creates_pickup_leg_from_truck_position(
+    processor,
+    mock_truck_repo,
+    mock_order_repo,
+    mock_route_service,
+    mock_truck_service,
+    mock_warehouse_repo,
+    mock_store_repo,
+):
+    truck = _make_mock_truck(id="truck_01", current_lat=-23.55, current_lng=-46.63)
+    mock_truck_repo.get_by_id.return_value = truck
+
+    order = _make_mock_order(
+        id="order_007",
+        requester_type="store",
+        requester_id="store_01",
+        target_type="warehouse",
+        target_id="wh_01",
+    )
+    mock_order_repo.get_by_id.return_value = order
+
+    warehouse = _make_mock_warehouse(id="wh_01", lat=-23.0, lng=-46.0)
+    mock_warehouse_repo.get_by_id.return_value = warehouse
+
+    store = _make_mock_store(id="store_01", lat=-23.5, lng=-46.6)
+    mock_store_repo.get_by_id.return_value = store
+
+    payload = {"order_id": "order_007", "chosen_route_risk_level": "low"}
+
+    await processor.process(
+        "truck", "truck_01", "accept_contract", payload, current_tick=5
+    )
+
+    mock_route_service.compute_route.assert_called_once()
+    compute_args = mock_route_service.compute_route.call_args.args
+    assert compute_args[0] == -23.55 and compute_args[1] == -46.63, (
+        "pickup leg must start at truck.current_lat/lng"
+    )
+    assert compute_args[2] == -23.0 and compute_args[3] == -46.0, (
+        "pickup leg must end at order.target (warehouse) coords"
+    )
+
+    mock_route_service.create_route.assert_called_once()
+    create_kwargs = mock_route_service.create_route.call_args
+    args = create_kwargs.args
+    route_data = args[5] if len(args) >= 6 else create_kwargs.kwargs.get("route_data")
+    assert route_data["leg"] == "pickup"
+    assert route_data["order_id"] == "order_007"
+    assert args[1] == "truck", "pickup leg origin_type must be 'truck'"
+    assert args[2] == "truck_01", "pickup leg origin_id must be the truck id"
+    assert args[3] == "warehouse"
+    assert args[4] == "wh_01"
+
+    assign_call = mock_truck_service.assign_route.call_args
+    assigned_cargo = assign_call.args[2]
+    assert assigned_cargo["material_id"] == order.material_id
+    assert assigned_cargo["destination_type"] == "store"
+    assert assigned_cargo["destination_id"] == "store_01"

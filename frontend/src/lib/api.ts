@@ -36,6 +36,8 @@ interface RawSnapshot {
   warehouses: Array<Record<string, unknown>>;
   stores: Array<Record<string, unknown>>;
   trucks: TruckSnapshot[];
+  active_events?: unknown[];
+  active_routes?: unknown[];
 }
 
 function dictToArray<T>(dict: Record<string, T>, keyName: string): (T & Record<string, string>)[] {
@@ -93,8 +95,8 @@ function transformSnapshot(raw: RawSnapshot): WorldStatePayload {
     warehouses,
     stores,
     trucks: raw.trucks,
-    active_events: [],
-    active_routes: [],
+    active_events: (raw.active_events as WorldStatePayload["active_events"]) ?? [],
+    active_routes: (raw.active_routes as WorldStatePayload["active_routes"]) ?? [],
   };
 }
 

@@ -174,8 +174,8 @@ async def test_trucks_types(async_session, seeded_db):
         )
     )
     rows = {row[0]: row[1] for row in result.fetchall()}
-    assert rows.get("proprietario") == 3
-    assert rows.get("terceiro") == 3
+    assert rows.get("proprietario") == 2
+    assert rows.get("terceiro") == 4
 
 
 async def test_truck_001_values(async_session, seeded_db):

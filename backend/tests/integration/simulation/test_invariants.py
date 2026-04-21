@@ -524,14 +524,14 @@ async def test_truck_cargo_matches_route_order(seeded_simulation_client, mock_va
     )
 
 
-async def test_truck_cargo_origin_matches_route_origin(seeded_simulation_client, mock_valhalla):
+async def test_truck_cargo_matches_route_by_leg(seeded_simulation_client, mock_valhalla):
     client, session, _ = seeded_simulation_client
     await _drive_cycle_to_in_transit_store(client, session)
     await session.rollback()
 
     row = (await session.execute(
         text(
-            "SELECT t.id, t.cargo, r.origin_type, r.origin_id, r.dest_type, r.dest_id FROM trucks t "
+            "SELECT t.id, t.cargo, r.origin_type, r.origin_id, r.dest_type, r.dest_id, r.leg FROM trucks t "
             "JOIN routes r ON r.id = t.active_route_id "
             "WHERE t.status='in_transit' AND t.active_route_id IS NOT NULL"
         )
@@ -539,11 +539,20 @@ async def test_truck_cargo_origin_matches_route_origin(seeded_simulation_client,
     assert row is not None
     cargo = row.cargo
     assert cargo is not None
-    assert cargo.get("origin_type") == row.origin_type, (
-        f"cargo.origin_type={cargo.get('origin_type')} vs route.origin_type={row.origin_type}"
-    )
-    assert cargo.get("origin_id") == row.origin_id, (
-        f"cargo.origin_id={cargo.get('origin_id')} vs route.origin_id={row.origin_id}"
-    )
-    assert cargo.get("destination_type") == row.dest_type
-    assert cargo.get("destination_id") == row.dest_id
+
+    if row.leg == "pickup":
+        # pickup leg: route goes truck -> cargo pickup location (cargo.origin)
+        assert row.origin_type == "truck"
+        assert cargo.get("origin_type") == row.dest_type, (
+            f"pickup dest must match cargo.origin_type: cargo={cargo.get('origin_type')} "
+            f"vs route.dest={row.dest_type}"
+        )
+        assert cargo.get("origin_id") == row.dest_id
+    else:
+        # delivery leg (or legacy): route.origin = cargo pickup, route.dest = cargo destination
+        assert cargo.get("origin_type") == row.origin_type, (
+            f"cargo.origin_type={cargo.get('origin_type')} vs route.origin_type={row.origin_type}"
+        )
+        assert cargo.get("origin_id") == row.origin_id
+        assert cargo.get("destination_type") == row.dest_type
+        assert cargo.get("destination_id") == row.dest_id

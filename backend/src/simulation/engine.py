@@ -90,6 +90,7 @@ class SimulationEngine:
             world_state = await world_state_service.load(self._tick)
 
         await self._apply_physics(world_state)
+        active_routes_payload = await self._build_active_routes_payload()
         triggers = await self._evaluate_triggers(world_state)
         for agent_fn, event in triggers:
             entity_key = (
@@ -113,7 +114,10 @@ class SimulationEngine:
             task.add_done_callback(
                 lambda t, k=entity_key: self._clear_in_flight_if(k, t)
             )
-        await publish_world_state(world_state, self._tick, self._publisher_redis_client)
+        await publish_world_state(
+            world_state, self._tick, self._publisher_redis_client,
+            active_routes=active_routes_payload,
+        )
 
     def _clear_in_flight_if(self, key, task) -> None:
         entry = self._in_flight_by_entity.get(key)
@@ -270,6 +274,13 @@ class SimulationEngine:
                         await route_repo.update_status(route.id, "interrupted")
                         continue
 
+                    if route.leg == "pickup":
+                        await self._complete_pickup_and_dispatch_delivery(
+                            truck, route, cargo, world_state,
+                            truck_repo, route_repo, session,
+                        )
+                        continue
+
                     if material_id and quantity_tons > 0:
                         if route.origin_type == "warehouse":
                             await warehouse_repo.consume_reserved(
@@ -363,6 +374,7 @@ class SimulationEngine:
                     )
 
                     if roll_breakdown(new_breakdown_risk):
+                        await route_repo.update_status(route.id, "interrupted")
                         await truck_repo.update_status(truck.id, "broken")
                         await event_repo.create({
                             "event_type": "truck_breakdown",
@@ -371,6 +383,7 @@ class SimulationEngine:
                             "entity_id": truck.id,
                             "payload": {
                                 "route_id": str(route.id),
+                                "leg": route.leg,
                                 "lat": new_lat,
                                 "lng": new_lng,
                             },
@@ -427,6 +440,109 @@ class SimulationEngine:
         if origin_type == "factory":
             return await factory_repo.get_by_id(origin_id) is not None
         return True
+
+    async def _complete_pickup_and_dispatch_delivery(
+        self, truck, pickup_route, cargo, world_state,
+        truck_repo, route_repo, session,
+    ) -> None:
+        from src.services.route import RouteService
+
+        if isinstance(cargo, dict):
+            dest_type = cargo.get("destination_type")
+            dest_id = cargo.get("destination_id")
+        else:
+            dest_type = getattr(cargo, "destination_type", None)
+            dest_id = getattr(cargo, "destination_id", None)
+
+        dest_coords = self._entity_coords_from_world_state(
+            world_state, dest_type, dest_id
+        )
+        if dest_coords is None:
+            logger.error(
+                "Pickup arrival for truck {} but delivery destination {}/{} not found; interrupting",
+                truck.id, dest_type, dest_id,
+            )
+            if pickup_route.order_id is not None:
+                await OrderRepository(session).update_status(
+                    pickup_route.order_id, "cancelled"
+                )
+            await truck_repo.set_cargo(truck.id, None)
+            await truck_repo.update_status(truck.id, "idle")
+            await truck_repo.set_active_route(truck.id, None)
+            await route_repo.update_status(pickup_route.id, "interrupted")
+            return
+
+        pickup_final_lng, pickup_final_lat = pickup_route.path[-1]
+        route_service = RouteService(route_repo)
+        delivery_data = await route_service.compute_route(
+            pickup_final_lat, pickup_final_lng,
+            dest_coords[0], dest_coords[1],
+            self._tick,
+        )
+        delivery_data["leg"] = "delivery"
+        if pickup_route.order_id is not None:
+            delivery_data["order_id"] = str(pickup_route.order_id)
+
+        delivery_route = await route_service.create_route(
+            truck.id,
+            pickup_route.dest_type,
+            pickup_route.dest_id,
+            dest_type,
+            dest_id,
+            delivery_data,
+        )
+
+        await truck_repo.update_position(truck.id, pickup_final_lat, pickup_final_lng)
+        await truck_repo.set_active_route(truck.id, str(delivery_route.id))
+        await route_repo.update_status(pickup_route.id, "completed")
+
+    @staticmethod
+    def _entity_coords_from_world_state(
+        world_state, entity_type: str, entity_id: str
+    ) -> tuple[float, float] | None:
+        collections = {
+            "warehouse": world_state.warehouses,
+            "store": world_state.stores,
+            "factory": world_state.factories,
+        }
+        pool = collections.get(entity_type, [])
+        for entity in pool:
+            if entity.id == entity_id:
+                return (entity.lat, entity.lng)
+        return None
+
+    async def _build_active_routes_payload(self) -> list[dict]:
+        tick_interval_ms = int(self._tick_interval * 1000)
+        payload: list[dict] = []
+        async with self._session_factory() as session:
+            route_repo = RouteRepository(session)
+            routes = await route_repo.get_all_active()
+            for route in routes:
+                if not self._is_valid_path(route.path):
+                    continue
+                timestamps = route.timestamps or []
+                if not timestamps or route.started_at is None:
+                    continue
+                started_ms = int(route.started_at.timestamp() * 1000)
+                start_tick = timestamps[0]
+                ts_ms = [
+                    started_ms + (t - start_tick) * tick_interval_ms
+                    for t in timestamps
+                ]
+                payload.append({
+                    "id": str(route.id),
+                    "truck_id": route.truck_id,
+                    "origin_type": route.origin_type,
+                    "origin_id": route.origin_id,
+                    "dest_type": route.dest_type,
+                    "dest_id": route.dest_id,
+                    "path": route.path,
+                    "timestamps": ts_ms,
+                    "eta_ticks": route.eta_ticks,
+                    "status": route.status,
+                    "started_at": route.started_at.isoformat(),
+                })
+        return payload
 
     @staticmethod
     def _is_valid_path(path) -> bool:

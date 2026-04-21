@@ -4,6 +4,7 @@ import { Map as MapGL } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useWorldStore } from "../store/worldStore";
 import { useInspect } from "../hooks/useInspect";
+import { useAnimatedCurrentTime } from "../hooks/useAnimatedCurrentTime";
 import { INITIAL_VIEW_STATE, MAP_STYLE } from "./mapConfig";
 import { createNodesLayer } from "./layers/NodesLayer";
 import { createTrucksLayers } from "./layers/TrucksLayer";
@@ -26,15 +27,10 @@ export default function WorldMap() {
   const trucks = useWorldStore((s) => s.trucks);
   const activeRoutes = useWorldStore((s) => s.activeRoutes);
   const activeEvents = useWorldStore((s) => s.activeEvents);
-  const simulatedTimestamp = useWorldStore((s) => s.simulatedTimestamp);
 
   const { selectEntity, clearSelection } = useInspect();
 
-  const currentTime = useMemo(
-    () =>
-      simulatedTimestamp ? new Date(simulatedTimestamp).getTime() : Date.now(),
-    [simulatedTimestamp],
-  );
+  const currentTime = useAnimatedCurrentTime();
 
   const entityPositions = useMemo(() => {
     const positions = new Map<string, [number, number]>();
