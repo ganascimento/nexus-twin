@@ -691,3 +691,136 @@ async def test_master_agent_dispatch_skips_create_task_when_no_triggers():
         await dispatch_node(master_state)
 
     mock_create_task.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Langfuse observability integration (feature 31)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_build_agent_graph_without_langfuse_handler_has_no_callbacks():
+    mock_repo = AsyncMock()
+    mock_repo.get_recent_by_entity.return_value = []
+
+    with patch("src.agents.base.get_callback_handler", return_value=None):
+        with patch("src.agents.base.ChatOpenAI") as MockChatOpenAI:
+            with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
+                with patch("pathlib.Path.read_text", return_value="System prompt"):
+                    build_agent_graph(
+                        agent_type="factory",
+                        tools=[],
+                        decision_schema_map={},
+                        db_session=MagicMock(),
+                        publisher_instance=AsyncMock(),
+                    )
+
+    MockChatOpenAI.assert_called_once()
+    kwargs = MockChatOpenAI.call_args.kwargs
+    assert "callbacks" not in kwargs or kwargs["callbacks"] == []
+
+
+@pytest.mark.asyncio
+async def test_build_agent_graph_with_langfuse_handler_injects_callback():
+    fake_handler = MagicMock(name="LangfuseCallbackHandler")
+    mock_repo = AsyncMock()
+    mock_repo.get_recent_by_entity.return_value = []
+
+    with patch("src.agents.base.get_callback_handler", return_value=fake_handler):
+        with patch("src.agents.base.ChatOpenAI") as MockChatOpenAI:
+            with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
+                with patch("pathlib.Path.read_text", return_value="System prompt"):
+                    build_agent_graph(
+                        agent_type="factory",
+                        tools=[],
+                        decision_schema_map={},
+                        db_session=MagicMock(),
+                        publisher_instance=AsyncMock(),
+                    )
+
+    MockChatOpenAI.assert_called_once()
+    kwargs = MockChatOpenAI.call_args.kwargs
+    callbacks = kwargs.get("callbacks")
+    assert callbacks is not None
+    assert fake_handler in callbacks
+
+
+@pytest.mark.asyncio
+async def test_act_node_tags_trace_error_on_validation_failure():
+    fake_handler = MagicMock(name="LangfuseCallbackHandler")
+    fake_handler.update_current_trace = MagicMock()
+
+    messages = [AIMessage(content='{"action":"start_production","payload":{}}')]
+    state = make_agent_state(entity_type="factory", messages=messages)
+
+    mock_schema_class = MagicMock(side_effect=ValueError("guardrail rejected"))
+    mock_repo = AsyncMock()
+
+    act_node_fn = _make_act_node_for_graph(
+        {"factory": mock_schema_class}, MagicMock(), AsyncMock()
+    )
+
+    with patch("src.agents.base.get_callback_handler", return_value=fake_handler):
+        with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
+            result = await act_node_fn(state)
+
+    assert result["error"] is not None
+    fake_handler.update_current_trace.assert_called()
+    call_kwargs = fake_handler.update_current_trace.call_args.kwargs
+    assert call_kwargs.get("level") == "ERROR"
+    assert call_kwargs.get("status_message")
+
+
+@pytest.mark.asyncio
+async def test_act_node_does_not_call_trace_update_when_handler_is_none():
+    messages = [AIMessage(content='{"action":"start_production","payload":{}}')]
+    state = make_agent_state(entity_type="factory", messages=messages)
+
+    mock_schema_class = MagicMock(side_effect=ValueError("guardrail rejected"))
+    mock_repo = AsyncMock()
+
+    act_node_fn = _make_act_node_for_graph(
+        {"factory": mock_schema_class}, MagicMock(), AsyncMock()
+    )
+
+    with patch("src.agents.base.get_callback_handler", return_value=None):
+        with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
+            result = await act_node_fn(state)
+
+    assert result["error"] is not None
+
+
+@pytest.mark.asyncio
+async def test_fast_path_decision_tags_metadata_fast_path_taken():
+    fake_handler = MagicMock(name="LangfuseCallbackHandler")
+    fake_handler.update_current_trace = MagicMock()
+
+    state = make_agent_state(
+        entity_type="factory",
+        fast_path_taken=True,
+        decision={
+            "action": "hold",
+            "reasoning_summary": "all products full",
+            "payload": None,
+        },
+    )
+
+    mock_schema_instance = MagicMock()
+    mock_schema_class = MagicMock(return_value=mock_schema_instance)
+    mock_repo = AsyncMock()
+
+    act_node_fn = _make_act_node_for_graph(
+        {"factory": mock_schema_class}, MagicMock(), AsyncMock()
+    )
+
+    with patch("src.agents.base.get_callback_handler", return_value=fake_handler):
+        with patch("src.agents.base.AgentDecisionRepository", return_value=mock_repo):
+            result = await act_node_fn(state)
+
+    assert result["error"] is None
+    fake_handler.update_current_trace.assert_called()
+    merged_kwargs = {}
+    for call in fake_handler.update_current_trace.call_args_list:
+        merged_kwargs.update(call.kwargs)
+    metadata = merged_kwargs.get("metadata") or {}
+    assert metadata.get("fast_path_taken") is True

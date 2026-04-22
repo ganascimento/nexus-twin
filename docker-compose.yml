@@ -75,6 +75,178 @@ services:
     environment:
       use_tiles_ignore_pbf: "True"
 
+  # ===========================================================================
+  # Langfuse (self-hosted) — observability dos agentes LLM (OPCIONAL)
+  # Dashboard local: http://localhost:3100
+  # Se LANGFUSE_PUBLIC_KEY/LANGFUSE_SECRET_KEY estiverem vazias no backend/.env,
+  # a instrumentacao fica desativada — estes servicos podem permanecer parados.
+  # ===========================================================================
+
+  langfuse-postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:24.3-alpine
+    environment:
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse
+      CLICKHOUSE_DB: default
+    volumes:
+      - langfuse_clickhouse:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  langfuse-redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "langfuse"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "langfuse", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse-minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: langfuse
+      MINIO_ROOT_PASSWORD: langfuse1234
+    volumes:
+      - langfuse_minio:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: creates the event-upload bucket that langfuse-worker expects.
+  # Without this the worker logs `NoSuchBucket` and silently drops every trace.
+  langfuse-minio-init:
+    image: minio/mc
+    depends_on:
+      langfuse-minio:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        mc alias set lf http://langfuse-minio:9000 langfuse langfuse1234 &&
+        mc mb --ignore-existing lf/langfuse &&
+        echo "bucket ready"
+    restart: "no"
+
+  # NOTE: the worker depends on langfuse-web because web runs the Prisma
+  # migrations on boot (creates pricing_tiers, prices, etc.), and the worker's
+  # first task is seedDefaultModelPrices — which writes into those tables.
+  # If the worker boots first it fails silently and model costs stay $0 until
+  # something restarts the worker.
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_started
+      langfuse-minio-init:
+        condition: service_completed_successfully
+      langfuse-web:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: langfuse1234
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      # Replace these in production — generate all three via `openssl rand -hex 32`.
+      # Must be quoted so YAML does not coerce hex-looking strings to numbers.
+      NEXTAUTH_SECRET: "mysecret-change-in-prod"
+      SALT: "mysalt-change-in-prod"
+      ENCRYPTION_KEY: "31bac9b36c366e9284b5fa8f72777c50da42c292dc83c4dd2ec834694051f8a2"
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+
+  langfuse-web:
+    image: langfuse/langfuse:3
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_started
+      langfuse-minio-init:
+        condition: service_completed_successfully
+    ports:
+      - "3100:3000"
+    healthcheck:
+      # Next.js binds to the container IP (not 127.0.0.1), so hit $(hostname).
+      test: ["CMD-SHELL", "wget -qO- http://$$(hostname):3000/api/public/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-postgres:5432/langfuse
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: langfuse1234
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      NEXTAUTH_URL: http://localhost:3100
+      NEXTAUTH_SECRET: "mysecret-change-in-prod"
+      SALT: "mysalt-change-in-prod"
+      ENCRYPTION_KEY: "31bac9b36c366e9284b5fa8f72777c50da42c292dc83c4dd2ec834694051f8a2"
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      # Auto-provisioning on first boot (runs only when the langfuse postgres
+      # is empty). All INIT_* vars must be present for the init to fire — if
+      # any is missing, the script exits silently and nothing is created.
+      LANGFUSE_INIT_ORG_ID: nexus-twin-org
+      LANGFUSE_INIT_ORG_NAME: NexusTwin
+      LANGFUSE_INIT_PROJECT_ID: nexus-twin
+      LANGFUSE_INIT_PROJECT_NAME: NexusTwin
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: "pk-lf-nexus-twin-local"
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: "sk-lf-nexus-twin-local"
+      LANGFUSE_INIT_USER_EMAIL: "admin@nexustwin.local"
+      LANGFUSE_INIT_USER_NAME: "NexusTwin Admin"
+      LANGFUSE_INIT_USER_PASSWORD: "nexustwin1234"
+
   # ---------------------------------------------------------------------------
   # Backend e Frontend rodam localmente — comentados no compose
   # ---------------------------------------------------------------------------
@@ -101,3 +273,6 @@ services:
 
 volumes:
   pgdata:
+  langfuse_pgdata:
+  langfuse_clickhouse:
+  langfuse_minio:

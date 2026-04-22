@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.base import WorldStateSlice, build_agent_graph
 from src.guardrails.store import StoreDecision
+from src.observability.langfuse import build_invoke_config
 from src.repositories.event import EventRepository
 from src.repositories.factory import FactoryRepository
 from src.repositories.order import OrderRepository
@@ -129,4 +130,4 @@ class StoreAgent:
             publisher_instance=self._publisher,
             decision_effect_processor=processor,
         )
-        return await graph.ainvoke(initial_state)
+        return await graph.ainvoke(initial_state, config=build_invoke_config(trigger))

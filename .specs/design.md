@@ -1343,3 +1343,109 @@ async def try_lock_for_evaluation(self, truck_id: str) -> bool:
 - Agentes testáveis com `WorldState` mockado e `FakeListChatModel` do LangChain no lugar do `ChatOpenAI`
 - `WorldState` carregado em uma query com joins — sem N+1
 - Nenhuma decisão de agente afeta o banco sem passar pelo guardrail Pydantic
+
+---
+
+## 12. Observability — Langfuse
+
+Camada de tracing e métricas para o Multi-Agent System, plugada via callback do LangChain sem alterar a lógica dos agentes.
+
+### 12.1 Infraestrutura
+
+Adicionada ao `docker-compose.yml` como stack auxiliar:
+
+| Serviço              | Imagem                              | Porta | Função                                               |
+| -------------------- | ----------------------------------- | ----- | ---------------------------------------------------- |
+| `langfuse-web`       | `langfuse/langfuse:3`               | 3100  | Dashboard + API de ingestão (UI + REST para agents)  |
+| `langfuse-worker`    | `langfuse/langfuse-worker:3`        | —     | Processa traces em background, escreve no Clickhouse |
+| `langfuse-postgres`  | `postgres:15`                       | —     | Metadata: projetos, users, scores, datasets          |
+| `langfuse-clickhouse`| `clickhouse/clickhouse-server:24.3` | —     | Event store: traces, generations, spans              |
+| `langfuse-redis`     | `redis:7-alpine`                    | —     | Queue + cache entre `langfuse-web` e `langfuse-worker`|
+| `langfuse-minio`     | `minio/minio`                       | —     | Object store para blobs de eventos grandes           |
+
+> Os serviços Langfuse ficam isolados do `postgres`/`redis` do Nexus Twin — são instâncias separadas. Evita contaminação de dados e facilita reset independente.
+
+### 12.2 Integração com os Agentes
+
+O backend recebe uma dependência nova: `langfuse` (>=3.0). No bootstrap do backend (`src/main.py` ou módulo dedicado `src/observability/langfuse.py`) inicializamos um handler global:
+
+```python
+from langfuse.callback import CallbackHandler
+
+_langfuse_handler = CallbackHandler(
+    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+    host=os.environ.get("LANGFUSE_HOST", "http://localhost:3100"),
+)
+```
+
+No `build_agent_graph` (`src/agents/base.py`), o handler é injetado como callback do `ChatOpenAI`:
+
+```python
+llm = ChatOpenAI(
+    model=OPENAI_MODEL,
+    max_retries=OPENAI_MAX_RETRIES,
+    timeout=OPENAI_TIMEOUT_SECONDS,
+    callbacks=[_langfuse_handler] if _langfuse_handler else [],
+)
+```
+
+Isso captura automaticamente: prompt, resposta, tokens in/out, custo estimado, latência, versão do modelo. Sem instrumentação manual adicional.
+
+### 12.3 Metadata Estruturada
+
+A cada `graph.ainvoke(initial_state)` em `run_cycle`, o handler recebe metadata para permitir filtragem/agregação no dashboard:
+
+```python
+await graph.ainvoke(
+    initial_state,
+    config={
+        "callbacks": [_langfuse_handler],
+        "metadata": {
+            "agent_type": "store",
+            "entity_id": store_id,
+            "trigger_event": trigger.event_type,
+            "trigger_payload": trigger.payload,
+            "tick": trigger.tick,
+        },
+        "run_name": f"{agent_type}:{entity_id}:{trigger.event_type}",
+        "tags": [f"agent:{agent_type}", f"event:{trigger.event_type}"],
+    },
+)
+```
+
+**Session ID:** quando a decisão envolve um `order_id` (trigger payload contém `order_id`), esse valor é usado como `session_id` — agrupa no dashboard todos os traces relacionados à mesma ordem ao longo dos ticks (store→warehouse→truck pickup→truck delivery).
+
+### 12.4 Tagging de Falhas
+
+O `_act_node` em `base.py` já tem `try/except` que loga exceções. Com Langfuse:
+
+- **Validação Pydantic falhou:** chamar `_langfuse_handler.update_current_trace(level="ERROR", status_message=str(e))` antes do return no except.
+- **JSON parse falhou:** mesmo tagging.
+- **Decisão persistida com sucesso:** trace fica com `level=DEFAULT`. Fast-path hold também é logado (marcado `fast_path_taken=True` na metadata) — mesmo sem chamada ao LLM, a decisão ainda aparece como um span para completude da cadeia causal.
+
+### 12.5 Graceful Degradation
+
+O módulo `observability/langfuse.py` inicializa o handler condicionalmente — se `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` não estiverem setados, o handler é `None` e o sistema continua funcionando normalmente. A instrumentação é **opt-in**: projeto roda sem Langfuse sem modificação de código.
+
+### 12.6 O que Aparece no Dashboard
+
+- **Traces view:** cada ciclo de agente como uma árvore expansível. Filtros por `agent_type`, `trigger_event`, `tick`, `level`.
+- **Sessions view:** agrupa por `order_id` — vê a história inteira de uma ordem do pedido até a entrega.
+- **Metrics:** tokens/custo/latência agregados por model, trace name, metadata fields arbitrários.
+- **Datasets & Evaluations:** possibilidade futura — capturar traces reais, marcar posthoc como good/bad, criar datasets para regressão.
+
+### 12.7 Variáveis de Ambiente Novas
+
+Adicionadas ao `.env.example`:
+
+```dotenv
+# Langfuse (self-hosted) — opcional, vazio desativa instrumentação
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_HOST=http://localhost:3100
+```
+
+As chaves são geradas na primeira inicialização do Langfuse via UI (registra um user admin local e cria um projeto; o dashboard exibe as credenciais).
+
+---

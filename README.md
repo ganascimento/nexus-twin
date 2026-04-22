@@ -1,131 +1,151 @@
 <div align="center">
 
-# Nexus Twin
+# 🚚 Nexus Twin
 
-A fully autonomous supply chain simulation where every entity — factory, warehouse, store, and truck — is an AI agent that perceives the world, makes decisions, and acts without human intervention.
+### A fully autonomous supply chain simulation where every entity — factory, warehouse, store, and truck — is an AI agent that perceives the world, makes decisions, and acts without human intervention.
 
-![Python](https://img.shields.io/badge/Python_3.11+-3776AB?style=flat&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
-![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=flat&logo=langchain&logoColor=white)
-![React](https://img.shields.io/badge/React_18-61DAFB?style=flat&logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostGIS-4169E1?style=flat&logo=postgresql&logoColor=white)
+<br />
+
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+[![React](https://img.shields.io/badge/React_18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostGIS-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgis.net/)
+[![deck.gl](https://img.shields.io/badge/deck.gl_9-000000?style=for-the-badge&logo=mapbox&logoColor=white)](https://deck.gl/)
+[![Langfuse](https://img.shields.io/badge/Langfuse-0A0A0A?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4%3D&logoColor=white)](https://langfuse.com/)
+
+<br />
+
+![Unit Tests](https://img.shields.io/badge/unit_tests-637_passing-brightgreen?style=flat-square)
+![Integration Tests](https://img.shields.io/badge/integration_tests-202_passing-brightgreen?style=flat-square)
+![Total Tests](https://img.shields.io/badge/total-839_tests-blue?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square)
+
+<br />
+
+<img src="assets/app_01.png" alt="Nexus Twin — trucks in transit with live agent decisions" width="92%" />
 
 </div>
 
 ---
 
-## Features
+## ✨ What is Nexus Twin
 
-- **Autonomous multi-agent system** — each entity runs a LangGraph `StateGraph` cycle (`perceive > decide > act`) powered by `gpt-4o-mini`, reacting to supply chain events without human intervention
-- **Real Sao Paulo road network** — trucks navigate actual OSM highways (Anhanguera, Bandeirantes, Dutra) via self-hosted Valhalla routing, animated live on a WebGL map with deck.gl `TripsLayer`
-- **Live simulation ticks** — deterministic physics engine advances the world every 10s (= 1 simulated hour); agent decisions fire-and-forget in the background and stream to the dashboard via WebSocket
-- **Chaos injection** — inject disruptive events (truck strikes, road blocks, machine breakdowns, demand spikes) and watch agents autonomously adapt
-- **Game master dashboard** — fullscreen WebGL map with HUD overlays to inspect any entity, manage the world, and monitor the agent decision feed in real time
-- **Self-hosted geo stack** — Martin tile server + Planetiler PMTiles + Valhalla routing, no paid map API required
+A closed, autonomous world inspired by RPG NPCs — but instead of a dungeon, the world is a supply chain of construction materials running on the real road network of São Paulo state. Every factory, warehouse, store, and truck is an **AI agent** that reads the world, talks to other agents, and resolves problems on its own. You are the **game master**: you watch the simulation unfold, inject chaos events, reshape the world, and debug agent decisions in real time.
 
-## Tech Stack
+- 🤖 **Autonomous multi-agent system** — each entity runs a LangGraph `StateGraph` (`perceive → decide → act`) powered by `gpt-4o-mini`
+- 🗺️ **Real São Paulo road network** — trucks route over OSM highways (Anhanguera, Bandeirantes, Dutra) via self-hosted Valhalla, animated on a WebGL map
+- ⏱️ **Tick-based physics engine** — 10s real = 1 simulated hour; deterministic physics + fire-and-forget LLM agents
+- 🎲 **Chaos injection** — strikes, road blocks, machine breakdowns, demand spikes; agents adapt autonomously
+- 🎮 **Game-master dashboard** — fullscreen WebGL map with inspect panels and live agent decision feed
+- 🔎 **Observability built-in** — optional Langfuse integration for tracing, cost, and latency of every agent decision
 
-| Layer           | Technology                                                      |
-| --------------- | --------------------------------------------------------------- |
-| Backend runtime | Python 3.11+, FastAPI, Uvicorn                                  |
-| AI / Agents     | LangGraph `StateGraph`, OpenAI `gpt-4o-mini`                    |
-| Agent tools     | LangChain `@tool` + `ToolNode`                                  |
-| Guardrails      | Pydantic v2 (validates every agent decision before DB write)    |
-| Database        | PostgreSQL 15+ with PostGIS                                     |
-| Async jobs      | Celery + Redis (non-LLM background tasks)                       |
-| Realtime        | FastAPI WebSockets + Redis Pub/Sub                              |
-| Frontend        | React 18 + TypeScript + Vite                                    |
-| Map / WebGL     | MapLibre GL JS 4 + deck.gl 9 (`TripsLayer`, `ScatterplotLayer`) |
-| Global state    | Zustand (WorldState synced per tick via WebSocket)              |
-| UI / HUD        | Tailwind CSS + shadcn/ui                                        |
-| Tile server     | Martin (Rust) serving PMTiles                                   |
-| Routing engine  | Valhalla (Docker) — truck-aware routing                         |
-| Tile generation | Planetiler > PMTiles (one-time setup)                           |
+---
 
-## Getting Started
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/app_02.png" alt="Warehouse inspect panel with stock levels and recent decisions" />
+      <p align="center"><sub><b>Inspect any node.</b> Click a factory, warehouse, or store to see stock per material, min thresholds, and the agent's recent decisions.</sub></p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/app_03.png" alt="Truck in transit with cargo, degradation and breakdown risk" />
+      <p align="center"><sub><b>Follow a truck in real time.</b> Cargo, degradation, breakdown risk, and route animate live as the truck drives along actual OSM highways.</sub></p>
+    </td>
+  </tr>
+</table>
+
+---
+
+## 🧱 Tech Stack
+
+| Layer                | Technology                                                      |
+| -------------------- | --------------------------------------------------------------- |
+| **Backend runtime**  | Python 3.11+, FastAPI, Uvicorn                                  |
+| **AI / Agents**      | LangGraph `StateGraph`, OpenAI `gpt-4o-mini`                    |
+| **Agent tools**      | LangChain `@tool` + `ToolNode`                                  |
+| **Guardrails**       | Pydantic v2 — validates every agent decision before DB write    |
+| **Observability**    | Langfuse (self-hosted, optional) — tracing, cost, latency       |
+| **Database**         | PostgreSQL 15+ with PostGIS                                     |
+| **Async jobs**       | Celery + Redis (non-LLM background tasks)                       |
+| **Realtime**         | FastAPI WebSockets + Redis Pub/Sub                              |
+| **Frontend**         | React 18 + TypeScript + Vite                                    |
+| **Map / WebGL**      | MapLibre GL JS 4 + deck.gl 9 (`TripsLayer`, `ScatterplotLayer`) |
+| **Global state**     | Zustand (WorldState synced per tick via WebSocket)              |
+| **UI / HUD**         | Tailwind CSS + shadcn/ui                                        |
+| **Tile server**      | Martin (Rust) serving PMTiles                                   |
+| **Routing engine**   | Valhalla (Docker) — truck-aware routing                         |
+| **Tile generation**  | Planetiler → PMTiles (one-time setup)                           |
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- **Docker 24+** and **Docker Compose** — for PostgreSQL, Redis, and the geo stack
-- **Python 3.11+** — backend runtime
-- **Node.js 20+** — frontend dev server
-- **OpenAI API key** — with credit; agents use `gpt-4o-mini` (~$0.15/1M input tokens)
+- **Docker 24+** and **Docker Compose**
+- **Python 3.11+**
+- **Node.js 20+**
+- **OpenAI API key** with credit (agents use `gpt-4o-mini`, ~$0.15 per 1M input tokens)
 
-### 1. Clone and install dependencies
+### 1. Clone and configure
 
 ```bash
 git clone <repo-url>
 cd nexus-twin
+cp backend/.env.example backend/.env
 ```
 
-**Backend:**
+Open `backend/.env` and set:
+
+```dotenv
+OPENAI_API_KEY=sk-your-key-here
+```
+
+All other values default to `localhost` and work out of the box.
+
+### 2. Generate geo data (one-time)
+
+Rendering the map and truck routing need OSM data for São Paulo state. This is a ~1 hour one-time setup (downloads + Planetiler tile build + Valhalla graph build).
+
+→ Full instructions: **[`geo/README.md`](geo/README.md)**
+
+### 3. Start the infrastructure
+
+All services (PostgreSQL + PostGIS, Redis, Martin, Valhalla, and optional Langfuse) are managed by Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+Check everything is healthy:
+
+```bash
+docker compose ps
+```
+
+### 4. Apply migrations and seed the world
 
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+
+alembic upgrade head                 # creates tables + PostGIS extensions
+python scripts/seed.py               # seeds the default world
 ```
 
-**Frontend:**
+The default world contains: **3 materials**, **3 factories**, **3 warehouses**, **5 stores**, and **6 trucks** (2 owned by factories + 4 third-party).
 
-```bash
-cd frontend
-npm install
-```
-
-### 2. Configure environment
-
-The `.env` file lives inside `backend/`:
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-Open `backend/.env` and set your OpenAI API key:
-
-```dotenv
-OPENAI_API_KEY=sk-your-key-here
-```
-
-The other values default to `localhost` and work out of the box for local development.
-
-### 3. Start infrastructure
-
-All services (PostgreSQL, Redis, Martin tile server, Valhalla routing) are managed by Docker Compose. Backend and frontend run locally.
-
-```bash
-docker compose up -d
-```
-
-Wait for services to be healthy:
-
-```bash
-docker compose ps
-```
-
-> Martin and Valhalla require geo data to be generated first (see [Geo Data Setup](#geo-data-setup-one-time) below). Without it, the simulation still works but the map will be empty and routing unavailable.
-
-### 4. Create and seed the database
-
-From the `backend/` directory, with the venv activated:
-
-```bash
-cd backend
-
-# Apply all migrations (creates tables + PostGIS extensions)
-alembic upgrade head
-
-# Seed the default world (3 materials, 3 factories, 3 warehouses, 5 stores, 6 trucks)
-python scripts/seed.py
-```
-
-### 5. Run the application
+### 5. Run backend and frontend
 
 Open two terminals:
 
-**Terminal 1 — Backend:**
+**Terminal 1 — Backend**
 
 ```bash
 cd backend
@@ -133,189 +153,119 @@ source .venv/bin/activate
 uvicorn src.main:app --reload --port 8000
 ```
 
-**Terminal 2 — Frontend:**
+**Terminal 2 — Frontend**
 
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
 
-Open your browser:
-
-| Service  | URL                        |
-| -------- | -------------------------- |
-| Frontend | http://localhost:5173      |
-| API docs | http://localhost:8000/docs |
+Open your browser at **<http://localhost:5173>** and press **Start Simulation** in the HUD.
 
 ---
 
-## Geo Data Setup (one-time)
+## 📊 Observability (optional)
 
-The map and routing use real OpenStreetMap data from Sao Paulo state. These files are large and not versioned in git — you generate them once locally.
+Nexus Twin ships with an opt-in integration to [Langfuse](https://langfuse.com) (self-hosted, OSS) that gives you **one trace per agent decision**: full prompt + response, input/output tokens, estimated cost, latency, model version, and metadata (`agent_type`, `entity_id`, `trigger_event`, `tick`). Decisions for the same order share a `session_id`, so the full path (store → warehouse → truck pickup → truck delivery) reads as one timeline in the dashboard.
 
-All files go into `geo/data/`. Run all commands from the project root.
+Without the Langfuse env vars set, the system runs with **zero overhead and zero network calls** — the instrumentation simply does not load.
 
-### Step 1 — Download OSM extract (~800 MB)
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/ob_01.png" alt="Langfuse Home — aggregated cost, token usage, and traces per agent" />
+      <p align="center"><sub><b>Aggregated view.</b> Total cost per model, tokens consumed, and traces grouped by <code>agent_type:entity_id</code> — at a glance you see which agents are most active and how much they cost.</sub></p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/ob_02.png" alt="Langfuse Tracing — one row per agent decision with input, output, latency, and token counts" />
+      <p align="center"><sub><b>Per-decision tracing.</b> Every agent cycle is a row: timestamp, trigger event, full input context, LLM output, latency, and token usage — filterable by <code>agent_type</code>, <code>trigger_event</code>, or <code>tick</code>.</sub></p>
+    </td>
+  </tr>
+</table>
 
-```bash
-wget https://download.geofabrik.de/south-america/brazil/sudeste-latest.osm.pbf \
-  -O geo/data/sudeste-latest.osm.pbf
+#### Enabling it
+
+1. Bring up the stack with `docker compose up -d` and wait **~30–60s** on the first boot — ClickHouse runs migrations before `langfuse-web` becomes ready. Check status with `docker compose ps | grep langfuse`.
+2. Open the Langfuse dashboard at **<http://localhost:3100>**
+3. Sign up — the first user becomes the local admin (credentials stay on your machine)
+4. Open the pre-created `NexusTwin` organization and project
+5. Go to **Settings → API Keys** and click **Create new API keys**
+   > ⚠️ The `secret_key` is shown **only once** — copy both before closing the dialog
+6. Paste into `backend/.env`:
+
+```dotenv
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_HOST=http://localhost:3100
 ```
 
-### Step 2 — Generate vector tiles with Planetiler (~30 min, output ~2-4 GB)
+7. Restart the backend (`Ctrl+C` on uvicorn, then `uvicorn src.main:app --reload --port 8000`) — every agent decision from the next tick on will appear in the dashboard
 
-These tiles are what the Martin tile server serves to MapLibre for rendering the base map.
+> Want to run **only** the observability stack? `docker compose up -d langfuse-web langfuse-worker langfuse-postgres langfuse-clickhouse langfuse-redis langfuse-minio`
+>
+> To stop just the observability stack: `docker compose stop langfuse-web langfuse-worker langfuse-postgres langfuse-clickhouse langfuse-redis langfuse-minio`
 
-Planetiler needs auxiliary datasets besides the OSM extract. Download them first to avoid connection issues during processing:
+#### What to look at in the dashboard
 
-```bash
-mkdir -p geo/data/sources
+| View            | What you see                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------- |
+| **Traces**      | One trace per agent decision — full prompt + response, tokens, cost, latency. Filter by `agent_type`, `trigger_event`, `tick` |
+| **Sessions**    | Traces grouped by `order_id` — follow a single order from pickup to delivery across multiple agents       |
+| **Generations** | Raw LLM calls with prompt/response pairs, token usage, model version                                      |
+| **Dashboards**  | Aggregated metrics over time — tokens consumed, estimated cost, latency p50/p95                           |
 
-wget -O geo/data/sources/natural_earth_vector.sqlite.zip \
-  https://naciscdn.org/naturalearth/packages/natural_earth_vector.sqlite.zip
+#### Troubleshooting
 
-wget -O geo/data/sources/water-polygons-split-3857.zip \
-  https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip
+If nothing shows up after starting the simulation, check in this order:
 
-wget -O geo/data/sources/lake_centerline.shp.zip \
-  https://osmdata.openstreetmap.de/download/lake-centerline.shp.zip
-```
-
-Then run Planetiler (it will find the pre-downloaded files and skip to processing):
-
-```bash
-docker run --rm -v $(pwd)/geo/data:/data ghcr.io/onthegomap/planetiler:latest \
-  --osm-path=/data/sudeste-latest.osm.pbf \
-  --output=/data/sudeste.pmtiles
-```
-
-### Step 3 — Build Valhalla routing graph (~20-30 min)
-
-Valhalla uses this graph to calculate real truck routes along OSM highways. Copy the PBF into the Valhalla directory and run the container — it detects the file and builds the routing graph automatically on startup.
-
-```bash
-mkdir -p geo/data/valhalla_tiles
-
-cp geo/data/sudeste-latest.osm.pbf geo/data/valhalla_tiles/
-
-docker run --rm -v $(pwd)/geo/data/valhalla_tiles:/custom_files \
-  -e use_tiles_ignore_pbf=False \
-  -e build_elevation=False \
-  -e build_admins=False \
-  ghcr.io/gis-ops/docker-valhalla/valhalla:latest
-
-# After the build finishes, remove the copied PBF (only the generated tiles are needed)
-rm geo/data/valhalla_tiles/sudeste-latest.osm.pbf
-```
-
-After all steps, your `geo/data/` directory should look like this:
-
-```
-geo/data/
-├── sudeste-latest.osm.pbf    # ~800 MB — downloaded from Geofabrik
-├── sudeste.pmtiles            # ~2-4 GB — generated by Planetiler
-└── valhalla_tiles/            # ~1-2 GB — generated by Valhalla
-```
-
-Restart the infrastructure to pick up the new geo data:
-
-```bash
-docker compose restart martin valhalla
-```
+1. **Did you restart the backend after setting the keys?** Langfuse instrumentation is initialized at startup — reloads via `--reload` do pick up `.env` changes, but a full restart is safer.
+2. **Is the simulation actually running?** Click **Start Simulation** in the HUD and check the backend logs — you should see `POST https://api.openai.com/v1/chat/completions` lines as agents decide.
+3. **Are fast-path `hold` decisions being filtered out in your view?** They show up in the dashboard with metadata `fast_path_taken=true` but may be hidden if you're filtering by `trigger_event`.
+4. **Is `langfuse-worker` up?** Without the worker, events queue up in Redis but never reach ClickHouse. `docker compose logs -f langfuse-worker` will tell you.
 
 ---
 
-## Environment Variables
+## 📂 Per-module docs
 
-| Variable                | Description                                       | Required |
-| ----------------------- | ------------------------------------------------- | -------- |
-| `OPENAI_API_KEY`        | OpenAI API key for agent LLM calls                | Yes      |
-| `OPENAI_MODEL`          | Model name (default: `gpt-4o-mini`)               | No       |
-| `DATABASE_URL`          | PostgreSQL connection string (asyncpg + PostGIS)  | Yes      |
-| `REDIS_URL`             | Redis connection URL (Celery + Pub/Sub)           | Yes      |
-| `API_HOST` / `API_PORT` | FastAPI server bind address                       | No       |
-| `VITE_API_URL`          | Backend REST base URL for the frontend            | No       |
-| `VITE_TILE_SERVER_URL`  | Martin tile server URL for MapLibre               | No       |
-| `TICK_INTERVAL_SECONDS` | Simulation tick interval in seconds (min 10)      | No       |
-| `MAX_AGENT_WORKERS`     | Max concurrent OpenAI calls (`asyncio.Semaphore`) | No       |
-| `VALHALLA_URL`          | Valhalla routing engine base URL                  | No       |
+Each part of the project has its own README with deeper detail.
 
-## Database Commands
+| Module    | What is in there                                                          | Link                                       |
+| --------- | ------------------------------------------------------------------------- | ------------------------------------------ |
+| 🐍 **Backend**  | Multi-agent architecture, physics engine, repositories, guardrails, tests | **[`backend/README.md`](backend/README.md)** |
+| 🎨 **Frontend** | deck.gl layers, HUD, WebSocket sync, worldStore, build                    | **[`frontend/README.md`](frontend/README.md)** |
+| 🌍 **Geo data** | OSM download, Planetiler PMTiles, Valhalla routing graph build            | **[`geo/README.md`](geo/README.md)**       |
 
-All commands from `backend/` with the venv activated:
+---
 
-```bash
-# Apply all migrations
-alembic upgrade head
+## 🔌 Service Ports
 
-# Roll back all migrations
-alembic downgrade base
+| Service                    | Port  | Purpose                        |
+| -------------------------- | ----- | ------------------------------ |
+| Frontend (Vite)            | 5173  | Dashboard (HMR dev server)     |
+| Backend (FastAPI)          | 8000  | REST API + WebSocket           |
+| PostgreSQL + PostGIS       | 5432  | World state persistence        |
+| Redis                      | 6379  | Pub/Sub + Celery broker        |
+| Martin (tile server)       | 3001  | Vector tiles for MapLibre      |
+| Valhalla (routing)         | 8002  | Real truck routes over OSM     |
+| Langfuse dashboard         | 3100  | Optional agent observability   |
 
-# Generate a new migration after changing ORM models
-alembic revision --autogenerate -m "describe_your_change"
+---
 
-# Check current migration version
-alembic current
-
-# Show full migration history
-alembic history --verbose
-```
-
-## Testing
+## 🧪 Testing
 
 ```bash
 cd backend
 pip install -e ".[test]"
-pytest
+pytest                               # 839 tests total
+pytest tests/unit/                   # 637 unit tests (fast, mocked LLM)
+pytest tests/integration/            # 202 integration tests (ephemeral Postgres)
 ```
 
 Integration tests use `testcontainers` to spin up an ephemeral PostgreSQL — no external database needed.
 
-## Build
+---
 
-```bash
-cd frontend
-npm run build
-```
+## 📄 License
 
-## Service Ports
-
-| Service              | Port | Notes                |
-| -------------------- | ---- | -------------------- |
-| Frontend (Vite)      | 5173 | Dev server with HMR  |
-| Backend (FastAPI)    | 8000 | REST API + WebSocket |
-| PostgreSQL + PostGIS | 5432 | Docker container     |
-| Redis                | 6379 | Docker container     |
-| Martin (tile server) | 3001 | Requires geo data    |
-| Valhalla (routing)   | 8002 | Requires geo data    |
-
-## Project Structure
-
-```
-nexus-twin/
-├── backend/
-│   └── src/
-│       ├── agents/          # LangGraph StateGraphs — one per entity type
-│       ├── guardrails/      # Pydantic decision schemas — validated before every DB write
-│       ├── simulation/      # Tick engine, physics, event publisher, chaos injection
-│       ├── world/           # WorldState snapshot + domain entity models
-│       ├── services/        # Business logic layer
-│       ├── repositories/    # DB access layer (one file per aggregate)
-│       ├── tools/           # LangChain @tool functions for agents
-│       ├── workers/         # Celery tasks (non-LLM background jobs)
-│       ├── api/             # FastAPI routes + WebSocket streaming
-│       └── database/        # SQLAlchemy models, Alembic migrations, seed data
-├── frontend/
-│   └── src/
-│       ├── map/             # deck.gl layers (trucks, nodes, routes, events)
-│       ├── hud/             # Overlay UI (inspect panel, agent log, chaos controls)
-│       ├── store/           # Zustand world state
-│       └── hooks/           # WebSocket + inspect state hooks
-├── geo/
-│   └── data/               # Large files — not versioned (OSM, PMTiles, Valhalla tiles)
-└── docker-compose.yml
-```
-
-## License
-
-MIT
+[MIT](LICENSE)

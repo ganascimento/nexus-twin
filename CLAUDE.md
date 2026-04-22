@@ -28,6 +28,7 @@ Simulação de um **mundo fechado e autônomo** de cadeia de suprimentos, inspir
 | Message Queue | Celery + Redis (jobs assíncronos dos agentes)       |
 | Realtime      | FastAPI WebSockets + Redis Pub/Sub                  |
 | Logging       | Loguru                                              |
+| Observability | Langfuse (self-hosted) — tracing/cost/latency por decisão de agente |
 
 ### Frontend (Game-like Dashboard)
 
@@ -101,6 +102,10 @@ nexus-twin/
 │   │   │   ├── events.py               # Definição dos tipos de evento + roteamento entre agentes
 │   │   │   ├── publisher.py            # Redis Pub/Sub: publica WorldState e decisões nos canais
 │   │   │   └── chaos.py                # Injeção de eventos disruptivos
+│   │   │
+│   │   ├── observability/              # Tracing e métricas dos agentes
+│   │   │   ├── __init__.py
+│   │   │   └── langfuse.py             # CallbackHandler global + helpers de metadata/session
 │   │   │
 │   │   ├── workers/                    # Celery — jobs background não-LLM
 │   │   │   ├── __init__.py
@@ -416,6 +421,7 @@ celery = { extras = ["redis"] }  # Jobs background (não-LLM)
 redis = ">=5.0"
 loguru = ">=0.7"
 httpx = ">=0.27"              # HTTP client para ferramentas externas
+langfuse = ">=3.0"            # Observability — tracing/cost/latency dos agentes (opcional)
 
 [project.optional-dependencies]
 test = [
@@ -481,6 +487,11 @@ MAX_AGENT_WORKERS=4                          # asyncio.Semaphore — concorrênc
 VALHALLA_URL=http://localhost:8002           # Valhalla routing engine
 OSM_DATA_PATH=./geo/data/sudeste-latest.osm.pbf
 PMTILES_PATH=./geo/data/sudeste.pmtiles
+
+# Observability (Langfuse) — opcional; vazio desativa instrumentação
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+LANGFUSE_HOST=http://localhost:3100
 ```
 
 ---

@@ -10,6 +10,7 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 from loguru import logger
 
+from src.observability.langfuse import get_callback_handler
 from src.repositories.agent_decision import AgentDecisionRepository
 from src.simulation.publisher import publish_agent_decision
 
@@ -311,6 +312,19 @@ def _make_decide_node(llm, tools):
     return decide_node
 
 
+def _tag_trace_safely(**kwargs) -> None:
+    handler = get_callback_handler()
+    if handler is None:
+        return
+    update = getattr(handler, "update_current_trace", None)
+    if update is None:
+        return
+    try:
+        update(**kwargs)
+    except Exception:
+        pass
+
+
 def _make_act_node_for_graph(
     decision_schema_map, db_session, publisher_instance, decision_effect_processor=None
 ):
@@ -321,6 +335,7 @@ def _make_act_node_for_graph(
         try:
             if state.get("fast_path_taken") and state.get("decision"):
                 raw = state["decision"]
+                _tag_trace_safely(metadata={"fast_path_taken": True})
             else:
                 raw = extract_json_from_last_message(state["messages"])
 
@@ -370,6 +385,7 @@ def _make_act_node_for_graph(
                 state.get("trigger_event"),
                 locals().get("raw"),
             )
+            _tag_trace_safely(level="ERROR", status_message=str(e)[:500])
             return {**state, "decision": None, "error": str(e)}
 
     return _act_node
@@ -383,11 +399,15 @@ def build_agent_graph(
     publisher_instance,
     decision_effect_processor=None,
 ):
-    llm = ChatOpenAI(
-        model=OPENAI_MODEL,
-        max_retries=OPENAI_MAX_RETRIES,
-        timeout=OPENAI_TIMEOUT_SECONDS,
-    )
+    llm_kwargs = {
+        "model": OPENAI_MODEL,
+        "max_retries": OPENAI_MAX_RETRIES,
+        "timeout": OPENAI_TIMEOUT_SECONDS,
+    }
+    langfuse_handler = get_callback_handler()
+    if langfuse_handler is not None:
+        llm_kwargs["callbacks"] = [langfuse_handler]
+    llm = ChatOpenAI(**llm_kwargs)
 
     perceive_fn = _make_perceive_node(db_session)
     decide_node = _make_decide_node(llm, tools)

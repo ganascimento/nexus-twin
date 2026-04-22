@@ -562,6 +562,24 @@ O usuário é o **game master** do mundo — assiste a partida acontecer e pode 
 
 ---
 
+## 9.1 Observabilidade dos Agentes
+
+Cada decisão de agente é um evento multi-step que envolve montagem de prompt, chamada ao LLM, validação da saída e efeitos colaterais no banco. Sem observabilidade dedicada, debugar por que um agente tomou uma decisão específica ou por que a cadeia entrou em um loop exige consultas manuais ao Postgres — caro, lento e cego para custos/latência do LLM.
+
+**O que é observável:**
+
+- **Cada chamada ao LLM** é um `generation` no tracing com: prompt final, raw response, tokens (input/output), custo estimado em USD, latência, versão do modelo.
+- **Cada ciclo de agente** (um `run_cycle` inteiro) é um `trace` agrupando o que aconteceu para aquela decisão — metadata `agent_type`, `entity_id`, `trigger_event`, `trigger_payload`, `tick`.
+- **Cadeia causal:** quando a decisão de um agente cria um `PendingOrder` que dispara outro agente no tick seguinte, o `order_id` propaga como `session_id` no tracing — tudo relacionado à mesma ordem aparece agrupado.
+- **Falhas silenciosas:** o `_act_node` taggeia a trace com `level=ERROR` quando a validação Pydantic falha ou quando o LLM retorna JSON inválido. Zero falhas passam despercebidas.
+- **Agregação automática por metadata:** tokens, custo e latência podem ser filtrados no dashboard do Langfuse por `agent_type` (quem consome mais), `trigger_event` (quais gatilhos são caros), `entity_id` (qual caminhão/loja específica), `tick` (evolução ao longo do tempo).
+
+**Stack:** [Langfuse](https://langfuse.com) self-hosted em Docker Compose (OSS). Plugado via callback do LangChain sem tocar a lógica dos agentes. Dashboard acessível localmente em `http://localhost:3100`.
+
+**Por que Langfuse self-hosted e não SaaS:** projeto educacional, nenhum dado sai da máquina do usuário; sem custo recorrente; mesmo binário usado por times de produção em empresas sérias, o que torna a experiência representativa.
+
+---
+
 ## 10. Critérios de Sucesso
 
 O produto funciona quando:
