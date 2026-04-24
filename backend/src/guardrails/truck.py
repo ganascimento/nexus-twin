@@ -11,11 +11,13 @@ DEGRADATION_BLOCK_THRESHOLD = 0.95
 class AcceptContractPayload(BaseModel):
     order_id: str
     chosen_route_risk_level: Literal["low", "medium", "high"]
+    orders_manifest: list[dict] | None = None
 
 
 class RefuseContractPayload(BaseModel):
     order_id: str
     reason: Literal["high_degradation", "route_risk", "low_cargo_utilization", "in_maintenance"]
+    orders_manifest: list[dict] | None = None
 
 
 class RequestMaintenancePayload(BaseModel):

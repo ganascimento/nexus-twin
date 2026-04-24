@@ -125,7 +125,7 @@ async def test_stop_production_does_not_affect_in_transit_order(
     assert float(production_rate) == 0.0
 
     order_status_mid = await get_order_status(session, order_id)
-    assert order_status_mid == "confirmed"
+    assert order_status_mid == "in_transit"
 
     hold_llm = make_llm_responses(*([HOLD] * 30))
     with patch("src.agents.base.ChatOpenAI", return_value=hold_llm):

@@ -107,6 +107,8 @@ class DecisionEffectProcessor:
         await self._warehouse_service.confirm_order(order_id, eta_ticks)
 
         order = await self._order_repo.get_by_id(order_id)
+        if order is None:
+            return
         await self._dispatch_truck_for_order(order, entity_id, tick)
 
     async def _handle_reject_order(self, entity_id, payload, tick):
@@ -192,6 +194,15 @@ class DecisionEffectProcessor:
         event_type = (
             "new_order" if truck.factory_id == entity_id else "contract_proposal"
         )
+        primary_order = existing or await self._order_repo.get_active_by_requester_target_material(
+            destination_warehouse_id, entity_id, material_id
+        )
+        manifest_entry = {
+            "order_id": str(primary_order.id) if primary_order is not None else None,
+            "material_id": material_id,
+            "quantity_tons": quantity_tons,
+        }
+        max_age_ticks = int(getattr(primary_order, "age_ticks", 0) or 0) if primary_order is not None else 0
         await self._event_repo.create(
             {
                 "event_type": event_type,
@@ -199,12 +210,15 @@ class DecisionEffectProcessor:
                 "entity_type": "truck",
                 "entity_id": truck.id,
                 "payload": {
+                    "order_id": manifest_entry["order_id"],
                     "material_id": material_id,
-                    "quantity_tons": payload["quantity_tons"],
+                    "quantity_tons": quantity_tons,
                     "origin_type": "factory",
                     "origin_id": entity_id,
                     "destination_type": "warehouse",
                     "destination_id": destination_warehouse_id,
+                    "orders_manifest": [manifest_entry],
+                    "max_age_ticks": max_age_ticks,
                 },
                 "status": "active",
                 "tick_start": tick,
@@ -248,6 +262,9 @@ class DecisionEffectProcessor:
                 )
                 return
 
+        manifest = self._build_manifest(payload, order)
+        total_quantity_tons = sum(float(m["quantity_tons"]) for m in manifest)
+
         pickup_coords = await self._get_entity_coords(
             order.target_type, order.target_id
         )
@@ -274,22 +291,30 @@ class DecisionEffectProcessor:
         cargo = {
             "order_id": str(order.id),
             "material_id": order.material_id,
-            "quantity_tons": order.quantity_tons,
+            "quantity_tons": total_quantity_tons,
             "origin_type": order.target_type,
             "origin_id": order.target_id,
             "destination_type": order.requester_type,
             "destination_id": order.requester_id,
+            "manifest": manifest,
         }
         await self._truck_service.assign_route(entity_id, str(pickup_route.id), cargo)
+
+        manifest_ids = [m["order_id"] for m in manifest if m.get("order_id")]
+        await self._order_repo.mark_in_transit_bulk(manifest_ids)
 
     async def _handle_refuse_contract(self, entity_id, payload, tick):
         order = await self._order_repo.get_by_id(payload["order_id"])
         if order is None:
             return
 
+        manifest = self._build_manifest(payload, order)
+        total_quantity_tons = sum(float(m["quantity_tons"]) for m in manifest)
+        max_age_ticks = int(getattr(order, "age_ticks", 0) or 0)
+
         origin_coords = await self._get_entity_coords(order.target_type, order.target_id)
         next_truck = await self._truck_repo.get_idle_third_party_for_load(
-            order.quantity_tons,
+            total_quantity_tons,
             origin_coords[0],
             origin_coords[1],
             exclude_id=entity_id,
@@ -297,7 +322,7 @@ class DecisionEffectProcessor:
         if next_truck is None:
             logger.warning(
                 "No alternative truck with enough capacity for refused contract: order={} qty={}",
-                payload["order_id"], order.quantity_tons,
+                payload["order_id"], total_quantity_tons,
             )
             return
 
@@ -310,11 +335,13 @@ class DecisionEffectProcessor:
                 "payload": {
                     "order_id": str(order.id),
                     "material_id": order.material_id,
-                    "quantity_tons": order.quantity_tons,
+                    "quantity_tons": total_quantity_tons,
                     "target_type": order.target_type,
                     "target_id": order.target_id,
                     "requester_type": order.requester_type,
                     "requester_id": order.requester_id,
+                    "orders_manifest": manifest,
+                    "max_age_ticks": max_age_ticks,
                 },
                 "status": "active",
                 "tick_start": tick,
@@ -328,11 +355,16 @@ class DecisionEffectProcessor:
         broken_truck = await self._truck_repo.get_by_id(entity_id)
         route = await self._route_repo.get_active_by_truck(entity_id)
 
+        cargo = broken_truck.cargo if broken_truck else None
+        manifest = self._extract_manifest_from_cargo(cargo)
+        manifest_ids = [m["order_id"] for m in manifest if m.get("order_id")]
+
         rescue_truck = await self._find_idle_third_party_truck(exclude_id=entity_id)
         if rescue_truck is None:
             logger.warning(
                 "No rescue truck available for broken truck={}", entity_id
             )
+            await self._order_repo.rollback_in_transit_bulk(manifest_ids)
             return
 
         event_payload = {"rescue_for": entity_id}
@@ -342,7 +374,6 @@ class DecisionEffectProcessor:
             event_payload["origin_id"] = route.origin_id
             event_payload["destination_type"] = route.dest_type
             event_payload["destination_id"] = route.dest_id
-        cargo = broken_truck.cargo if broken_truck else None
         if cargo is not None:
             if isinstance(cargo, dict):
                 event_payload["material_id"] = cargo.get("material_id")
@@ -350,6 +381,8 @@ class DecisionEffectProcessor:
             else:
                 event_payload["material_id"] = getattr(cargo, "material_id", None)
                 event_payload["quantity_tons"] = getattr(cargo, "quantity_tons", None)
+        if manifest:
+            event_payload["orders_manifest"] = manifest
 
         await self._event_repo.create({
             "event_type": "contract_proposal",
@@ -361,10 +394,22 @@ class DecisionEffectProcessor:
             "tick_start": tick,
         })
 
+        await self._order_repo.rollback_in_transit_bulk(manifest_ids)
+
         if route is not None and route.status == "active":
             await self._route_repo.update_status(route.id, "interrupted")
         await self._truck_repo.set_cargo(entity_id, None)
         await self._truck_repo.set_active_route(entity_id, None)
+
+        from src.world.physics import calculate_maintenance_ticks
+        degradation_for_duration = (
+            broken_truck.degradation if broken_truck is not None else 0.8
+        )
+        duration = calculate_maintenance_ticks(degradation_for_duration)
+        await self._truck_repo.update_status(entity_id, TruckStatus.MAINTENANCE.value)
+        await self._truck_repo.update_degradation(entity_id, 0.0, 0.0)
+        await self._truck_repo.set_maintenance_info(entity_id, tick, duration)
+
 
     async def _handle_reroute(self, entity_id, payload, tick):
         truck = await self._truck_repo.get_by_id(entity_id)
@@ -406,6 +451,13 @@ class DecisionEffectProcessor:
             )
             return
 
+        manifest_entry = {
+            "order_id": str(order.id),
+            "material_id": order.material_id,
+            "quantity_tons": float(order.quantity_tons),
+        }
+        max_age_ticks = int(getattr(order, "age_ticks", 0) or 0)
+
         await self._event_repo.create(
             {
                 "event_type": "contract_proposal",
@@ -414,15 +466,49 @@ class DecisionEffectProcessor:
                 "entity_id": truck.id,
                 "payload": {
                     "order_id": str(order.id),
+                    "material_id": order.material_id,
+                    "quantity_tons": float(order.quantity_tons),
                     "origin_type": order.target_type,
                     "origin_id": order.target_id,
                     "destination_type": order.requester_type,
                     "destination_id": order.requester_id,
+                    "orders_manifest": [manifest_entry],
+                    "max_age_ticks": max_age_ticks,
                 },
                 "status": "active",
                 "tick_start": tick,
             }
         )
+
+    def _build_manifest(self, decision_payload, primary_order):
+        manifest = decision_payload.get("orders_manifest") if isinstance(decision_payload, dict) else None
+        if manifest:
+            return [dict(m) for m in manifest]
+        return [
+            {
+                "order_id": str(primary_order.id),
+                "material_id": primary_order.material_id,
+                "quantity_tons": float(primary_order.quantity_tons),
+            }
+        ]
+
+    def _extract_manifest_from_cargo(self, cargo):
+        if cargo is None:
+            return []
+        if isinstance(cargo, dict):
+            manifest = cargo.get("manifest")
+            if manifest:
+                return [dict(m) for m in manifest]
+            order_id = cargo.get("order_id")
+            material_id = cargo.get("material_id")
+            quantity_tons = cargo.get("quantity_tons")
+            if order_id and material_id:
+                return [{
+                    "order_id": str(order_id),
+                    "material_id": material_id,
+                    "quantity_tons": float(quantity_tons or 0.0),
+                }]
+        return []
 
     async def _find_truck_for_factory(self, factory_id):
         factory_trucks = await self._truck_repo.get_by_factory(factory_id)

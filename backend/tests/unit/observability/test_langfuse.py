@@ -1,4 +1,5 @@
 import importlib
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -119,8 +120,10 @@ def test_build_trace_metadata_extracts_all_fields():
         "agent_type": "store",
         "entity_id": "store-001",
         "trigger_event": "low_stock_trigger",
-        "trigger_payload": {"order_id": "abc-123", "material_id": "cimento"},
-        "tick": 42,
+        "trigger_payload": json.dumps(
+            {"order_id": "abc-123", "material_id": "cimento"}
+        ),
+        "tick": "42",
     }
 
 
@@ -135,7 +138,8 @@ def test_build_trace_metadata_handles_null_payload():
         tick=7,
     )
     metadata = module.build_trace_metadata(event)
-    assert metadata["trigger_payload"] == {}
+    assert metadata["trigger_payload"] == "{}"
+    assert metadata["tick"] == "7"
     assert metadata["agent_type"] == "truck"
 
 

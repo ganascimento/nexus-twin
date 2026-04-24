@@ -86,6 +86,27 @@ class OrderRepository:
         )
         return result.scalars().all()
 
+    async def mark_in_transit_bulk(self, ids: list) -> None:
+        if not ids:
+            return
+        await self._session.execute(
+            update(PendingOrder)
+            .where(PendingOrder.id.in_(ids))
+            .values(status="in_transit")
+        )
+
+    async def rollback_in_transit_bulk(self, ids: list) -> None:
+        if not ids:
+            return
+        await self._session.execute(
+            update(PendingOrder)
+            .where(
+                PendingOrder.id.in_(ids),
+                PendingOrder.status == "in_transit",
+            )
+            .values(status="confirmed")
+        )
+
     async def increment_all_age_ticks(self) -> None:
         await self._session.execute(
             update(PendingOrder)

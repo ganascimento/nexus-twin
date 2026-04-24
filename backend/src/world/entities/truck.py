@@ -14,6 +14,8 @@ class TruckCargo(BaseModel):
     origin_id: str
     destination_type: RouteNodeType
     destination_id: str
+    order_id: Optional[str] = None
+    manifest: Optional[List[dict]] = None
 
 
 class TruckRoute(BaseModel):

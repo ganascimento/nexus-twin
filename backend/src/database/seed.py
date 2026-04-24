@@ -70,8 +70,8 @@ async def seed_default_world(session: AsyncSession) -> None:
         pg_insert(Store).values([
             {"id": "store-001", "name": "Constrular Centro",     "lat": -23.5505, "lng": -46.6333, "status": "open"},
             {"id": "store-002", "name": "Constrular Zona Leste", "lat": -23.5432, "lng": -46.4506, "status": "open"},
-            {"id": "store-003", "name": "Constrular Campinas",   "lat": -22.9099, "lng": -47.0626, "status": "open"},
-            {"id": "store-004", "name": "Material Norte",        "lat": -21.1784, "lng": -47.8108, "status": "open"},
+            {"id": "store-003", "name": "Constrular Campinas",   "lat": -22.9599, "lng": -47.0126, "status": "open"},
+            {"id": "store-004", "name": "Material Norte",        "lat": -21.2284, "lng": -47.7608, "status": "open"},
             {"id": "store-005", "name": "Depósito Paulista",     "lat": -23.4628, "lng": -46.5333, "status": "open"},
         ]).on_conflict_do_nothing(index_elements=["id"])
     )

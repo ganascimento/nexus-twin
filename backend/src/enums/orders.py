@@ -4,6 +4,7 @@ import enum
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
+    IN_TRANSIT = "in_transit"
     REJECTED = "rejected"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"

@@ -151,10 +151,10 @@ class RouteService:
 
     def _generate_timestamps(
         self, path: list, start_tick: int, eta_ticks: int
-    ) -> list[int]:
+    ) -> list[float]:
         n = len(path)
         if n <= 1:
-            return [start_tick]
+            return [float(start_tick)]
         return [
-            start_tick + round(i * eta_ticks / (n - 1)) for i in range(n)
+            start_tick + i * eta_ticks / (n - 1) for i in range(n)
         ]

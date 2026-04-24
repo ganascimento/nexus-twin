@@ -132,13 +132,14 @@ def test_chaos_event_status_member_count():
 def test_order_status_values():
     assert OrderStatus.PENDING.value == "pending"
     assert OrderStatus.CONFIRMED.value == "confirmed"
+    assert OrderStatus.IN_TRANSIT.value == "in_transit"
     assert OrderStatus.REJECTED.value == "rejected"
     assert OrderStatus.DELIVERED.value == "delivered"
     assert OrderStatus.CANCELLED.value == "cancelled"
 
 
 def test_order_status_member_count():
-    assert len(OrderStatus) == 5
+    assert len(OrderStatus) == 6
 
 
 def test_order_requester_type_values():

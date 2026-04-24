@@ -1,5 +1,6 @@
 import asyncio
 import os
+from uuid import UUID
 
 from loguru import logger
 
@@ -84,6 +85,8 @@ class SimulationEngine:
     async def run_tick(self) -> None:
         self._tick += 1
         from src.services.world_state import WorldStateService
+
+        await self._reconcile_routes()
 
         async with self._session_factory() as session:
             world_state_service = WorldStateService(session)
@@ -220,15 +223,7 @@ class SimulationEngine:
 
                 if new_eta == 0:
                     cargo = truck.cargo
-                    if isinstance(cargo, dict):
-                        material_id = cargo.get("material_id")
-                        quantity_tons = cargo.get("quantity_tons", 0.0)
-                    elif cargo is not None:
-                        material_id = getattr(cargo, "material_id", None)
-                        quantity_tons = getattr(cargo, "quantity_tons", 0.0)
-                    else:
-                        material_id = None
-                        quantity_tons = 0.0
+                    manifest = self._extract_cargo_manifest(cargo)
 
                     destination_exists = await self._destination_exists(
                         route.dest_type, route.dest_id,
@@ -244,17 +239,21 @@ class SimulationEngine:
                             "Truck {} arrived at deleted {} '{}'; interrupting route and discarding cargo",
                             truck.id, route.dest_type, route.dest_id,
                         )
-                        if origin_exists and material_id and quantity_tons > 0:
-                            if route.origin_type == "warehouse":
-                                await warehouse_repo.release_reserved(
-                                    route.origin_id, material_id, quantity_tons
-                                )
-                            elif route.origin_type == "factory":
-                                await factory_repo.release_reserved(
-                                    route.origin_id, material_id, quantity_tons
-                                )
-                        if route.order_id is not None:
-                            await order_repo.update_status(route.order_id, "cancelled")
+                        if origin_exists:
+                            for item in manifest:
+                                if not item.get("material_id") or item.get("quantity_tons", 0.0) <= 0:
+                                    continue
+                                if route.origin_type == "warehouse":
+                                    await warehouse_repo.release_reserved(
+                                        route.origin_id, item["material_id"], item["quantity_tons"]
+                                    )
+                                elif route.origin_type == "factory":
+                                    await factory_repo.release_reserved(
+                                        route.origin_id, item["material_id"], item["quantity_tons"]
+                                    )
+                        for item in manifest:
+                            if item.get("order_id"):
+                                await order_repo.update_status(item["order_id"], "cancelled")
                         await truck_repo.set_cargo(truck.id, None)
                         await truck_repo.update_status(truck.id, "idle")
                         await truck_repo.set_active_route(truck.id, None)
@@ -266,8 +265,9 @@ class SimulationEngine:
                             "Truck {} completing route from deleted {} '{}'; skipping consume_reserved",
                             truck.id, route.origin_type, route.origin_id,
                         )
-                        if route.order_id is not None:
-                            await order_repo.update_status(route.order_id, "cancelled")
+                        for item in manifest:
+                            if item.get("order_id"):
+                                await order_repo.update_status(item["order_id"], "cancelled")
                         await truck_repo.set_cargo(truck.id, None)
                         await truck_repo.update_status(truck.id, "idle")
                         await truck_repo.set_active_route(truck.id, None)
@@ -281,7 +281,12 @@ class SimulationEngine:
                         )
                         continue
 
-                    if material_id and quantity_tons > 0:
+                    for item in manifest:
+                        material_id = item.get("material_id")
+                        quantity_tons = item.get("quantity_tons", 0.0)
+                        if not material_id or quantity_tons <= 0:
+                            continue
+
                         if route.origin_type == "warehouse":
                             await warehouse_repo.consume_reserved(
                                 route.origin_id, material_id, quantity_tons
@@ -305,24 +310,32 @@ class SimulationEngine:
                                 truck.id, route.dest_type,
                             )
 
-                    if route.order_id is not None:
-                        await order_repo.update_status(route.order_id, "delivered")
+                    for item in manifest:
+                        raw_order_id = item.get("order_id")
+                        if not raw_order_id:
+                            continue
+                        order_id_value = (
+                            UUID(raw_order_id) if isinstance(raw_order_id, str) else raw_order_id
+                        )
+                        await order_repo.update_status(order_id_value, "delivered")
 
                     if route.dest_type in ("warehouse", "store"):
-                        delivery_payload = {
-                            "material_id": material_id,
-                            "quantity_tons": quantity_tons,
-                            "from_truck_id": truck.id,
-                        } if cargo is not None else {}
-                        await event_repo.create({
-                            "event_type": "resupply_delivered",
-                            "entity_type": route.dest_type,
-                            "entity_id": route.dest_id,
-                            "source": "engine",
-                            "status": "active",
-                            "tick_start": self._tick,
-                            "payload": delivery_payload,
-                        })
+                        for item in manifest:
+                            if not item.get("material_id"):
+                                continue
+                            await event_repo.create({
+                                "event_type": "resupply_delivered",
+                                "entity_type": route.dest_type,
+                                "entity_id": route.dest_id,
+                                "source": "engine",
+                                "status": "active",
+                                "tick_start": self._tick,
+                                "payload": {
+                                    "material_id": item["material_id"],
+                                    "quantity_tons": item["quantity_tons"],
+                                    "from_truck_id": truck.id,
+                                },
+                            })
 
                     await event_repo.create({
                         "event_type": "truck_arrived",
@@ -353,8 +366,6 @@ class SimulationEngine:
                         path, timestamps, self._tick
                     )
 
-                    await truck_repo.update_position(truck.id, new_lat, new_lng)
-
                     distance_km = calculate_distance_km(
                         truck.current_lat, truck.current_lng, new_lat, new_lng
                     )
@@ -369,11 +380,11 @@ class SimulationEngine:
                     )
                     new_degradation = truck.degradation + delta
                     new_breakdown_risk = calculate_breakdown_risk(new_degradation)
-                    await truck_repo.update_degradation(
-                        truck.id, new_degradation, new_breakdown_risk
-                    )
 
                     if roll_breakdown(new_breakdown_risk):
+                        await truck_repo.update_degradation(
+                            truck.id, new_degradation, new_breakdown_risk
+                        )
                         await route_repo.update_status(route.id, "interrupted")
                         await truck_repo.update_status(truck.id, "broken")
                         await event_repo.create({
@@ -384,13 +395,18 @@ class SimulationEngine:
                             "payload": {
                                 "route_id": str(route.id),
                                 "leg": route.leg,
-                                "lat": new_lat,
-                                "lng": new_lng,
+                                "lat": truck.current_lat,
+                                "lng": truck.current_lng,
                             },
                             "status": "active",
                             "tick_start": self._tick,
                         })
                         continue
+
+                    await truck_repo.update_position(truck.id, new_lat, new_lng)
+                    await truck_repo.update_degradation(
+                        truck.id, new_degradation, new_breakdown_risk
+                    )
 
             for store in world_state.stores:
                 for material_id, stock_entry in store.stocks.items():
@@ -415,6 +431,37 @@ class SimulationEngine:
             await order_repo.increment_all_age_ticks()
 
             await session.commit()
+
+    def _extract_cargo_manifest(self, cargo) -> list[dict]:
+        if cargo is None:
+            return []
+        if isinstance(cargo, dict):
+            manifest = cargo.get("manifest")
+            material_id = cargo.get("material_id")
+            quantity_tons = float(cargo.get("quantity_tons") or 0.0)
+            order_id = cargo.get("order_id")
+        else:
+            manifest = getattr(cargo, "manifest", None)
+            material_id = getattr(cargo, "material_id", None)
+            quantity_tons = float(getattr(cargo, "quantity_tons", 0.0) or 0.0)
+            order_id = getattr(cargo, "order_id", None)
+
+        if manifest:
+            return [
+                {
+                    "order_id": m.get("order_id"),
+                    "material_id": m.get("material_id"),
+                    "quantity_tons": float(m.get("quantity_tons") or 0.0),
+                }
+                for m in manifest
+            ]
+        if material_id:
+            return [{
+                "order_id": order_id,
+                "material_id": material_id,
+                "quantity_tons": quantity_tons,
+            }]
+        return []
 
     async def _destination_exists(
         self, dest_type: str, dest_id: str,
@@ -511,12 +558,76 @@ class SimulationEngine:
                 return (entity.lat, entity.lng)
         return None
 
+    async def _reconcile_routes(self) -> None:
+        async with self._session_factory() as session:
+            route_repo = RouteRepository(session)
+            truck_repo = TruckRepository(session)
+
+            grouped = await route_repo.get_active_grouped_by_truck()
+            if not grouped:
+                return
+
+            trucks_by_id = {t.id: t for t in await truck_repo.get_all()}
+            to_interrupt: list = []
+            trucks_to_clear: set[str] = set()
+
+            for truck_id, routes in grouped.items():
+                truck = trucks_by_id.get(truck_id)
+
+                if truck is None:
+                    for r in routes:
+                        to_interrupt.append(r.id)
+                    continue
+
+                # Broken trucks keep their active route until rescue takes over.
+                if truck.status == TruckStatus.BROKEN.value:
+                    continue
+
+                if truck.status != TruckStatus.IN_TRANSIT.value:
+                    for r in routes:
+                        to_interrupt.append(r.id)
+                    trucks_to_clear.add(truck_id)
+                    continue
+
+                # Truck is in_transit: keep the newest route, interrupt older duplicates.
+                if len(routes) > 1:
+                    kept = routes[0]
+                    for r in routes[1:]:
+                        to_interrupt.append(r.id)
+                    if (
+                        truck.active_route_id is not None
+                        and str(truck.active_route_id) != str(kept.id)
+                    ):
+                        await truck_repo.set_active_route(truck_id, str(kept.id))
+
+            if to_interrupt:
+                await route_repo.interrupt_many(to_interrupt)
+                logger.warning(
+                    "Route reconciliation interrupted {} stale route(s)",
+                    len(to_interrupt),
+                )
+            for tid in trucks_to_clear:
+                await truck_repo.set_active_route(tid, None)
+
+            await session.commit()
+
     async def _build_active_routes_payload(self) -> list[dict]:
         tick_interval_ms = int(self._tick_interval * 1000)
         payload: list[dict] = []
         async with self._session_factory() as session:
             route_repo = RouteRepository(session)
+            truck_repo = TruckRepository(session)
+
             routes = await route_repo.get_all_active()
+
+            broken_trucks = [
+                t for t in await truck_repo.get_all()
+                if t.status == TruckStatus.BROKEN.value
+            ]
+            broken_ids = [t.id for t in broken_trucks]
+            if broken_ids:
+                routes.extend(await route_repo.get_interrupted_by_trucks(broken_ids))
+
             for route in routes:
                 if not self._is_valid_path(route.path):
                     continue
@@ -825,27 +936,54 @@ class SimulationEngine:
                     )
                 await event_repo.resolve(blocked_evt.id, self._tick)
 
-            orphaned_orders = await order_repo.get_confirmed_without_route(limit=10)
+            orphaned_orders = await order_repo.get_confirmed_without_route(limit=50)
+            eligible_orders = []
             for order in orphaned_orders:
                 if await event_repo.order_has_active_truck_event(str(order.id)):
                     continue
+                eligible_orders.append(order)
+
+            groups: dict[tuple, list] = {}
+            for order in eligible_orders:
+                key = (
+                    order.target_type, order.target_id,
+                    order.requester_type, order.requester_id,
+                )
+                groups.setdefault(key, []).append(order)
+
+            used_truck_ids: set[str] = set()
+            for key, group in groups.items():
+                target_type, target_id, requester_type, requester_id = key
+                primary = group[0]
+                manifest = [
+                    {
+                        "order_id": str(o.id),
+                        "material_id": o.material_id,
+                        "quantity_tons": float(o.quantity_tons),
+                    }
+                    for o in group
+                ]
+                total_quantity_tons = sum(m["quantity_tons"] for m in manifest)
+                max_age_ticks = max(int(o.age_ticks or 0) for o in group)
 
                 truck = None
                 event_type = None
 
-                if order.target_type == "factory":
-                    truck = await truck_repo.get_idle_by_factory(order.target_id)
-                    if truck:
+                if target_type == "factory":
+                    candidate = await truck_repo.get_idle_by_factory(target_id)
+                    if candidate and candidate.id not in used_truck_ids:
+                        truck = candidate
                         event_type = "new_order"
 
                 if truck is None:
                     target_entity = self._find_entity_in_world_state(
-                        world_state, order.target_type, order.target_id
+                        world_state, target_type, target_id
                     )
                     ref_lat = target_entity.lat if target_entity else 0.0
                     ref_lng = target_entity.lng if target_entity else 0.0
                     truck = await truck_repo.get_idle_third_party_for_load(
-                        order.quantity_tons, ref_lat, ref_lng
+                        total_quantity_tons, ref_lat, ref_lng,
+                        exclude_ids=used_truck_ids or None,
                     )
                     if truck:
                         event_type = "contract_proposal"
@@ -853,19 +991,23 @@ class SimulationEngine:
                 if truck is None:
                     continue
 
+                used_truck_ids.add(truck.id)
+
                 await event_repo.create({
                     "event_type": event_type,
                     "source": "engine",
                     "entity_type": "truck",
                     "entity_id": truck.id,
                     "payload": {
-                        "order_id": str(order.id),
-                        "material_id": order.material_id,
-                        "quantity_tons": order.quantity_tons,
-                        "target_type": order.target_type,
-                        "target_id": order.target_id,
-                        "requester_type": order.requester_type,
-                        "requester_id": order.requester_id,
+                        "order_id": str(primary.id),
+                        "material_id": primary.material_id,
+                        "quantity_tons": total_quantity_tons,
+                        "target_type": target_type,
+                        "target_id": target_id,
+                        "requester_type": requester_type,
+                        "requester_id": requester_id,
+                        "orders_manifest": manifest,
+                        "max_age_ticks": max_age_ticks,
                     },
                     "status": "active",
                     "tick_start": self._tick,

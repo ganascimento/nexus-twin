@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Optional
 
@@ -69,8 +70,8 @@ def build_trace_metadata(trigger) -> dict:
         "agent_type": trigger.entity_type,
         "entity_id": trigger.entity_id,
         "trigger_event": trigger.event_type,
-        "trigger_payload": trigger.payload or {},
-        "tick": trigger.tick,
+        "trigger_payload": json.dumps(trigger.payload or {}, default=str),
+        "tick": str(trigger.tick),
     }
 
 

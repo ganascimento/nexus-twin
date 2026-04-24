@@ -115,6 +115,7 @@ class TruckRepository:
         ref_lat: float,
         ref_lng: float,
         exclude_id: str | None = None,
+        exclude_ids: set | None = None,
     ) -> Truck | None:
         stmt = select(Truck).where(
             Truck.truck_type == "terceiro",
@@ -123,6 +124,8 @@ class TruckRepository:
         )
         if exclude_id is not None:
             stmt = stmt.where(Truck.id != exclude_id)
+        if exclude_ids:
+            stmt = stmt.where(Truck.id.notin_(list(exclude_ids)))
 
         result = await self._session.execute(stmt)
         candidates = list(result.scalars().all())

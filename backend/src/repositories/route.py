@@ -28,6 +28,37 @@ class RouteRepository:
         )
         return list(result.scalars().all())
 
+    async def get_interrupted_by_trucks(self, truck_ids: list[str]) -> list[Route]:
+        if not truck_ids:
+            return []
+        result = await self._session.execute(
+            select(Route).where(
+                Route.truck_id.in_(truck_ids),
+                Route.status == "interrupted",
+            )
+        )
+        return list(result.scalars().all())
+
+    async def get_active_grouped_by_truck(self) -> dict[str, list[Route]]:
+        result = await self._session.execute(
+            select(Route)
+            .where(Route.status == "active")
+            .order_by(Route.truck_id, Route.started_at.desc())
+        )
+        grouped: dict[str, list[Route]] = {}
+        for route in result.scalars().all():
+            grouped.setdefault(route.truck_id, []).append(route)
+        return grouped
+
+    async def interrupt_many(self, route_ids: list) -> None:
+        if not route_ids:
+            return
+        await self._session.execute(
+            update(Route)
+            .where(Route.id.in_(route_ids))
+            .values(status="interrupted")
+        )
+
     async def get_active_by_truck(self, truck_id: str) -> Route | None:
         result = await self._session.execute(
             select(Route)
