@@ -24,7 +24,7 @@
 
 <br />
 
-<img src="assets/app_01.png" alt="Nexus Twin — trucks in transit with live agent decisions" width="92%" />
+<img src="assets/app_01.gif" alt="Nexus Twin — live simulation of autonomous trucks routing over São Paulo's OSM highways" width="82%" />
 
 </div>
 
@@ -48,12 +48,12 @@ A closed, autonomous world inspired by RPG NPCs — but instead of a dungeon, th
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="assets/app_02.png" alt="Warehouse inspect panel with stock levels and recent decisions" />
-      <p align="center"><sub><b>Inspect any node.</b> Click a factory, warehouse, or store to see stock per material, min thresholds, and the agent's recent decisions.</sub></p>
+      <img src="assets/app_02.png" alt="Store inspect panel with stocks, demand, and a broken truck's interrupted route dashed in red" />
+      <p align="center"><sub><b>Inspect any node.</b> Click a factory 🏭, warehouse 📦 or store 🏪 to see stocks per material, demand, reorder points, and the agent's recent decisions. The dashed red line is a truck that broke down mid-trip — the rescue will pick up the cargo automatically.</sub></p>
     </td>
     <td width="50%" valign="top">
-      <img src="assets/app_03.png" alt="Truck in transit with cargo, degradation and breakdown risk" />
-      <p align="center"><sub><b>Follow a truck in real time.</b> Cargo, degradation, breakdown risk, and route animate live as the truck drives along actual OSM highways.</sub></p>
+      <img src="assets/app_03.png" alt="Truck in transit with cargo, degradation, breakdown risk, and an active green route" />
+      <p align="center"><sub><b>Follow a truck in real time.</b> Click any truck 🚚 to see type (proprietário/terceiro), cargo manifest, degradation bar, and breakdown risk. The green line animates smoothly in real time as the truck drives along actual OSM highways; the icon flips horizontally to face the direction of travel.</sub></p>
     </td>
   </tr>
 </table>
