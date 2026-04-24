@@ -10,6 +10,36 @@ import type {
   EntityType,
 } from "@/types/world";
 
+const ENTITY_ICONS: Record<EntityType, string> = {
+  factory: "🏭",
+  warehouse: "📦",
+  store: "🏪",
+  truck: "🚚",
+};
+
+const ENTITY_LABELS: Record<EntityType, string> = {
+  factory: "Fábrica",
+  warehouse: "Armazém",
+  store: "Loja",
+  truck: "Caminhão",
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  order_replenishment: "pediu reposição",
+  confirm_order: "confirmou pedido",
+  reject_order: "rejeitou pedido",
+  request_resupply: "pediu reabastecimento",
+  start_production: "iniciou produção",
+  stop_production: "parou produção",
+  send_stock: "enviou estoque",
+  accept_contract: "aceitou contrato",
+  refuse_contract: "recusou contrato",
+  request_maintenance: "solicitou manutenção",
+  alert_breakdown: "avisou quebra",
+  reroute: "remarcou rota",
+  hold: "hold",
+};
+
 const FACTORY_STATUS_COLORS: Record<string, string> = {
   operating: "bg-green-600",
   reduced_capacity: "bg-yellow-600",
@@ -82,8 +112,7 @@ function DataTable({ headers, children }: { headers: string[]; children: React.R
 function FactoryDetails({ factory }: { factory: FactorySnapshot }) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold truncate">{factory.name}</h2>
+      <div className="mb-3">
         <StatusBadge status={factory.status} colorMap={FACTORY_STATUS_COLORS} />
       </div>
 
@@ -107,13 +136,12 @@ function FactoryDetails({ factory }: { factory: FactorySnapshot }) {
 function WarehouseDetails({ warehouse }: { warehouse: WarehouseSnapshot }) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-bold truncate">{warehouse.name}</h2>
+      <div className="mb-2">
         <StatusBadge status={warehouse.status} colorMap={WAREHOUSE_STATUS_COLORS} />
       </div>
       <div className="text-xs text-white/60 mb-3 space-y-0.5">
-        <p>Region: {warehouse.region}</p>
-        <p>Capacity: {warehouse.capacity_total} tons</p>
+        <p>Região: {warehouse.region}</p>
+        <p>Capacidade: {warehouse.capacity_total} t</p>
       </div>
 
       <SectionHeader>Stocks</SectionHeader>
@@ -134,8 +162,7 @@ function WarehouseDetails({ warehouse }: { warehouse: WarehouseSnapshot }) {
 function StoreDetails({ store }: { store: StoreSnapshot }) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold truncate">{store.name}</h2>
+      <div className="mb-3">
         <StatusBadge status={store.status} colorMap={STORE_STATUS_COLORS} />
       </div>
 
@@ -293,18 +320,33 @@ export default function InspectPanel() {
     .filter((d) => d.entity_id === selectedEntityId)
     .slice(0, DECISIONS_LIMIT);
 
+  const entityName = entity && "name" in entity ? entity.name : null;
+  const entityIcon = entityType ? ENTITY_ICONS[entityType] : "❓";
+  const entityLabel = entityType ? ENTITY_LABELS[entityType] : "Entidade";
+
   return (
-    <div className="fixed top-0 right-0 z-40 h-full w-80 bg-black/80 backdrop-blur text-white pointer-events-auto border-l border-white/10">
+    <div className="fixed top-12 right-0 bottom-0 z-40 w-80 bg-black/80 backdrop-blur text-white pointer-events-auto border-l border-t border-white/10">
       <ScrollArea className="h-full">
         <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs text-white/40 uppercase tracking-wider font-semibold">
-              {entityType ?? "Entity"} Inspector
+          <div className="flex items-start gap-3 mb-4">
+            <span className="text-3xl leading-none" aria-hidden="true">
+              {entityIcon}
             </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">
+                {entityLabel}
+              </div>
+              <div className="text-sm font-bold truncate">
+                {entityName ?? selectedEntityId}
+              </div>
+              <div className="text-[10px] font-mono text-white/50 truncate">
+                {selectedEntityId}
+              </div>
+            </div>
             <button
               type="button"
               onClick={clearSelection}
-              className="text-white/50 hover:text-white transition-colors p-1 rounded hover:bg-white/10"
+              className="text-white/50 hover:text-white transition-colors p-1 rounded hover:bg-white/10 shrink-0"
               aria-label="Close inspector"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -332,10 +374,14 @@ export default function InspectPanel() {
                     className="bg-white/5 rounded p-2 text-xs"
                   >
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className="font-semibold text-white/80">{d.action}</span>
+                      <span className="font-semibold text-white/80">
+                        {ACTION_LABELS[d.action] ?? d.action}
+                      </span>
                       <span className="text-[10px] text-white/40">T{d.tick}</span>
                     </div>
-                    <p className="text-white/60 line-clamp-2">{d.summary}</p>
+                    {d.summary && (
+                      <p className="text-white/60 line-clamp-2">{d.summary}</p>
+                    )}
                   </div>
                 ))}
               </div>

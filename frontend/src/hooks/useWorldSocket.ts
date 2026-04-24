@@ -67,9 +67,23 @@ export function useWorldSocket(): void {
           case "world_state":
             store.setWorldState(normalizeWorldState(message.payload));
             break;
-          case "agent_decisions":
-            store.addDecision(message.payload as AgentDecisionPayload);
+          case "agent_decisions": {
+            const raw = message.payload as AgentDecisionPayload & {
+              entity_type?: string;
+            };
+            const normalized: AgentDecisionPayload = {
+              ...raw,
+              agent_type: (raw.agent_type ?? raw.entity_type) as AgentDecisionPayload["agent_type"],
+              summary:
+                raw.summary ??
+                (raw as unknown as { reasoning_summary?: string })
+                  .reasoning_summary ??
+                "",
+              entity_name: raw.entity_name ?? raw.entity_id,
+            };
+            store.addDecision(normalized);
             break;
+          }
           case "events":
             store.updateEvent(message.payload as EventPayload);
             break;

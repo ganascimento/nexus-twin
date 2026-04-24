@@ -34,15 +34,17 @@ export default function StatsBar() {
 
   const [simulationStatus, setSimulationStatus] = useState<SimulationState>("unknown");
   const [tickInterval, setTickInterval] = useState(10);
+  const setTickIntervalSeconds = useWorldStore((s) => s.setTickIntervalSeconds);
 
   useEffect(() => {
     getSimulationStatus()
       .then((data) => {
         setSimulationStatus(data.status);
         setTickInterval(data.tick_interval_seconds);
+        setTickIntervalSeconds(data.tick_interval_seconds);
       })
       .catch(() => setSimulationStatus("unknown"));
-  }, []);
+  }, [setTickIntervalSeconds]);
 
   const criticalCount =
     factories.filter((f) => f.status !== "operating").length +
@@ -75,10 +77,11 @@ export default function StatsBar() {
   const handleApplySpeed = useCallback(async () => {
     try {
       await setSimulationSpeed(tickInterval);
+      setTickIntervalSeconds(tickInterval);
     } catch {
       // ignore
     }
-  }, [tickInterval]);
+  }, [tickInterval, setTickIntervalSeconds]);
 
   return (
     <div className="pointer-events-auto fixed top-0 left-0 right-0 z-50 flex items-center justify-between bg-black/80 backdrop-blur px-4 py-2 text-white text-sm">

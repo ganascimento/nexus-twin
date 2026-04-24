@@ -1,15 +1,16 @@
-import { useMemo } from "react";
-import DeckGL from "deck.gl";
+import { useCallback, useMemo } from "react";
 import { Map as MapGL } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useWorldStore } from "../store/worldStore";
 import { useInspect } from "../hooks/useInspect";
-import { useAnimatedCurrentTime } from "../hooks/useAnimatedCurrentTime";
+import { useSimulationClock } from "../hooks/useSimulationClock";
 import { INITIAL_VIEW_STATE, MAP_STYLE } from "./mapConfig";
-import { createNodesLayer } from "./layers/NodesLayer";
 import { createTrucksLayers } from "./layers/TrucksLayer";
 import { createRoutesLayer } from "./layers/RoutesLayer";
 import { createEventsLayer } from "./layers/EventsLayer";
+import FloatingAnimations from "./FloatingAnimations";
+import EntityMarkers from "./EntityMarkers";
+import DeckGLOverlay from "./DeckGLOverlay";
 import type { PickingInfo } from "@deck.gl/core";
 import type { EntityType } from "../types/world";
 
@@ -28,9 +29,10 @@ export default function WorldMap() {
   const activeRoutes = useWorldStore((s) => s.activeRoutes);
   const activeEvents = useWorldStore((s) => s.activeEvents);
 
-  const { selectEntity, clearSelection } = useInspect();
+  const clearSelection = useInspect((s) => s.clearSelection);
+  const selectEntity = useInspect((s) => s.selectEntity);
 
-  const currentTime = useAnimatedCurrentTime();
+  const currentTime = useSimulationClock();
 
   const entityPositions = useMemo(() => {
     const positions = new Map<string, [number, number]>();
@@ -43,41 +45,37 @@ export default function WorldMap() {
 
   const layers = useMemo(
     () => [
-      createRoutesLayer(activeRoutes, activeEvents),
-      createNodesLayer(factories, warehouses, stores),
+      ...createRoutesLayer(activeRoutes, activeEvents),
       ...createTrucksLayers(trucks, activeRoutes, currentTime),
       createEventsLayer(activeEvents, entityPositions),
     ],
-    [
-      factories,
-      warehouses,
-      stores,
-      trucks,
-      activeRoutes,
-      activeEvents,
-      currentTime,
-      entityPositions,
-    ],
+    [trucks, activeRoutes, activeEvents, currentTime, entityPositions],
   );
 
-  function handleClick(info: PickingInfo) {
-    const obj = info.object as PickedObject | undefined;
-    if (obj?.entityType && obj.id) {
-      selectEntity(obj.id, obj.entityType);
-    } else {
-      clearSelection();
-    }
-  }
+  const handleDeckClick = useCallback(
+    (info: PickingInfo) => {
+      const obj = info.object as PickedObject | undefined;
+      if (obj?.entityType && obj.id) {
+        selectEntity(obj.id, obj.entityType);
+      }
+    },
+    [selectEntity],
+  );
+
+  const handleMapClick = useCallback(() => {
+    clearSelection();
+  }, [clearSelection]);
 
   return (
-    <DeckGL
+    <MapGL
       initialViewState={INITIAL_VIEW_STATE}
-      controller={true}
-      layers={layers}
-      onClick={handleClick}
+      mapStyle={MAP_STYLE}
+      onClick={handleMapClick}
       style={{ width: "100%", height: "100%" }}
     >
-      <MapGL mapStyle={MAP_STYLE} />
-    </DeckGL>
+      <DeckGLOverlay layers={layers} onClick={handleDeckClick} interleaved />
+      <EntityMarkers />
+      <FloatingAnimations />
+    </MapGL>
   );
 }

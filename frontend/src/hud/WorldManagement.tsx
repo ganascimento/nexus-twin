@@ -56,15 +56,28 @@ const TABS: { id: TabId; label: string }[] = [
 export default function WorldManagement() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("materials");
+  const trucksVisible = useWorldStore((s) => s.trucksVisible);
+  const toggleTrucksVisible = useWorldStore((s) => s.toggleTrucksVisible);
 
   return (
-    <div className="fixed top-16 left-4 z-40" style={{ pointerEvents: "auto" }}>
+    <div
+      className="fixed top-16 left-4 z-40 flex flex-col gap-2"
+      style={{ pointerEvents: "auto" }}
+    >
       <Button
         onClick={() => setOpen(true)}
         className="bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 shadow-lg"
         size="sm"
       >
         Manage World
+      </Button>
+
+      <Button
+        onClick={toggleTrucksVisible}
+        className="bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 shadow-lg"
+        size="sm"
+      >
+        {trucksVisible ? "Hide Trucks" : "Show Trucks"}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

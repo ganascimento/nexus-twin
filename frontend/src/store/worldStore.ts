@@ -13,6 +13,8 @@ import type {
 export interface WorldStoreState {
   tick: number;
   simulatedTimestamp: string;
+  lastTickReceivedAt: number | null;
+  tickIntervalSeconds: number;
   factories: FactorySnapshot[];
   warehouses: WarehouseSnapshot[];
   stores: StoreSnapshot[];
@@ -21,16 +23,21 @@ export interface WorldStoreState {
   activeEvents: EventPayload[];
   recentDecisions: AgentDecisionPayload[];
   isConnected: boolean;
+  trucksVisible: boolean;
 
   setWorldState: (payload: WorldStatePayload) => void;
   addDecision: (payload: AgentDecisionPayload) => void;
   updateEvent: (payload: EventPayload) => void;
   setConnected: (connected: boolean) => void;
+  setTickIntervalSeconds: (seconds: number) => void;
+  toggleTrucksVisible: () => void;
 }
 
 export const useWorldStore = create<WorldStoreState>((set) => ({
   tick: 0,
   simulatedTimestamp: "",
+  lastTickReceivedAt: null,
+  tickIntervalSeconds: 10,
   factories: [],
   warehouses: [],
   stores: [],
@@ -39,11 +46,13 @@ export const useWorldStore = create<WorldStoreState>((set) => ({
   activeEvents: [],
   recentDecisions: [],
   isConnected: false,
+  trucksVisible: true,
 
   setWorldState: (payload) =>
     set({
       tick: payload.tick,
       simulatedTimestamp: payload.simulated_timestamp,
+      lastTickReceivedAt: Date.now(),
       factories: payload.factories,
       warehouses: payload.warehouses,
       stores: payload.stores,
@@ -86,4 +95,9 @@ export const useWorldStore = create<WorldStoreState>((set) => ({
     }),
 
   setConnected: (connected) => set({ isConnected: connected }),
+
+  setTickIntervalSeconds: (seconds) => set({ tickIntervalSeconds: seconds }),
+
+  toggleTrucksVisible: () =>
+    set((state) => ({ trucksVisible: !state.trucksVisible })),
 }));

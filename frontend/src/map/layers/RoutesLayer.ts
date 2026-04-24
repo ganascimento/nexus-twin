@@ -1,4 +1,6 @@
 import { PathLayer } from "@deck.gl/layers";
+import { PathStyleExtension } from "@deck.gl/extensions";
+import type { Layer } from "@deck.gl/core";
 import type { ActiveRoute, EventPayload } from "../../types/world";
 import {
   ROUTE_ACTIVE_COLOR,
@@ -25,9 +27,7 @@ function getRouteColor(
 export function createRoutesLayer(
   routes: ActiveRoute[],
   activeEvents: EventPayload[],
-): PathLayer<RouteDatum> {
-  const activeRoutes = routes.filter((r) => r.status === "active");
-
+): Layer[] {
   const blockedTruckIds = new Set<string>();
   const warningTruckIds = new Set<string>();
 
@@ -43,22 +43,62 @@ export function createRoutesLayer(
     }
   }
 
-  const data: RouteDatum[] = activeRoutes.map((r) => ({
-    id: r.id,
-    path: r.path,
-    color: getRouteColor(r, blockedTruckIds, warningTruckIds),
-  }));
+  const activeData: RouteDatum[] = [];
+  const interruptedData: RouteDatum[] = [];
 
-  return new PathLayer<RouteDatum>({
-    id: "routes-layer",
-    data,
-    getPath: (d) => d.path,
-    getColor: (d) => d.color,
-    getWidth: 3,
-    widthUnits: "pixels",
-    opacity: 0.6,
-    pickable: false,
-    jointRounded: true,
-    capRounded: true,
-  });
+  for (const r of routes) {
+    if (r.status === "active") {
+      activeData.push({
+        id: r.id,
+        path: r.path,
+        color: getRouteColor(r, blockedTruckIds, warningTruckIds),
+      });
+    } else if (r.status === "interrupted") {
+      interruptedData.push({
+        id: r.id,
+        path: r.path,
+        color: ROUTE_BLOCKED_COLOR,
+      });
+    }
+  }
+
+  const layers: Layer[] = [];
+
+  if (activeData.length > 0) {
+    layers.push(
+      new PathLayer<RouteDatum>({
+        id: "routes-layer-active",
+        data: activeData,
+        getPath: (d) => d.path,
+        getColor: (d) => d.color,
+        getWidth: 3,
+        widthUnits: "pixels",
+        opacity: 0.6,
+        pickable: false,
+        jointRounded: true,
+        capRounded: true,
+      }),
+    );
+  }
+
+  if (interruptedData.length > 0) {
+    layers.push(
+      new PathLayer<RouteDatum>({
+        id: "routes-layer-interrupted",
+        data: interruptedData,
+        getPath: (d) => d.path,
+        getColor: (d) => d.color,
+        getWidth: 3,
+        widthUnits: "pixels",
+        opacity: 0.85,
+        pickable: false,
+        jointRounded: true,
+        capRounded: true,
+        extensions: [new PathStyleExtension({ dash: true })],
+        ...({ getDashArray: [6, 4], dashJustified: true } as object),
+      }),
+    );
+  }
+
+  return layers;
 }
